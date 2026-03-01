@@ -101,7 +101,13 @@ const Login = () => {
 
       if (response.ok) {
         localStorage.removeItem('uc_guest');
-        localStorage.setItem("user", JSON.stringify(data));
+        // Add a safety check: make sure ID is present
+        const userData = {
+          ...data,
+          id: data.id || data.userId || data.user_id,
+          userId: data.userId || data.id || data.user_id
+        };
+        localStorage.setItem("user", JSON.stringify(userData));
         navigate("/dashboard");
       } else {
         throw new Error(data.error || "Invalid credentials");
@@ -119,9 +125,18 @@ const Login = () => {
 
   const handleGuestLogin = () => {
     localStorage.removeItem("user");
-    localStorage.setItem('uc_guest', 'true');
+    localStorage.setItem('uc_guest', '1');
     toast({ title: "Guest Mode Enabled" });
     navigate("/dashboard");
+  };
+
+  const handleClose = () => {
+    const isGuest = localStorage.getItem("uc_guest") === "1";
+    if (isGuest) {
+      navigate("/dashboard");
+    } else {
+      navigate("/");
+    }
   };
 
   return (
@@ -130,7 +145,7 @@ const Login = () => {
       <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4">
         <div className="relative w-full max-w-md space-y-6 rounded-2xl uc-gradient p-8 shadow-xl animate-in fade-in zoom-in duration-300">
           <button 
-            onClick={() => navigate("/")} 
+            onClick={handleClose} 
             className="absolute right-4 top-4 text-white hover:scale-110 transition-all"
             disabled={loading}
           >
@@ -171,6 +186,14 @@ const Login = () => {
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
+              </div>
+              <div className="flex justify-end px-1">
+                <Link 
+                  to="/forgot-password" 
+                  className="text-xs text-white/80 hover:text-white hover:underline transition-colors"
+                >
+                  Forgot Password?
+                </Link>
               </div>
             </div>
             <Button 

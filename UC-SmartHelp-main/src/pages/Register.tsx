@@ -17,6 +17,9 @@ const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // API URL from environment
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -25,35 +28,46 @@ const Register = () => {
       firstName,
       lastName,
       email: email.toLowerCase().trim(),
-      password, // Stored temporarily for local fallback login
+      password,
     };
 
     try {
-      // 1. Attempt Server Registration
-      const response = await fetch("http://localhost:3000/api/register", {
+      const response = await fetch(`${API_URL}/api/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
       });
 
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Invalid server response (Check Backend)");
+      }
+
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Registration failed");
 
-      toast({ title: "Success!", description: "Account created on server." });
-    } catch (error: any) {
-      // 2. Fallback: Save Locally if server is offline
-      console.warn("Server connection failed, using Local Mode.");
-    } finally {
-      // 3. Always save to LocalStorage to ensure Login works
-      localStorage.setItem("local_user", JSON.stringify(userData));
-      
       toast({ 
-        title: "Registration Complete", 
-        description: "Your account is ready (Local Fallback enabled)." 
+        title: "Success!", 
+        description: "Account created successfully. You can now login." 
       });
-      
-      setLoading(false);
       navigate("/login");
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Registration Error", 
+        description: error.message === "Failed to fetch" ? "Backend server is offline (Port 3000)." : error.message 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    const isGuest = localStorage.getItem("uc_guest") === "1";
+    if (isGuest) {
+      navigate("/dashboard");
+    } else {
+      navigate("/");
     }
   };
 
@@ -62,7 +76,10 @@ const Register = () => {
       <Navbar />
       <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4">
         <div className="relative w-full max-w-md space-y-5 rounded-2xl uc-gradient p-8 shadow-xl animate-in fade-in zoom-in duration-300">
-          <button onClick={() => navigate("/")} className="absolute right-4 top-4 text-white hover:scale-110 transition-transform">
+          <button 
+            onClick={handleClose} 
+            className="absolute right-4 top-4 text-white hover:scale-110 transition-transform"
+          >
             <X className="h-6 w-6" />
           </button>
 

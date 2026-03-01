@@ -1,4 +1,5 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,30 +13,63 @@ import logo from "@/assets/uc-smarthelp-logo.jpg";
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [user, setUser] = useState<any>(null);
+  const [isGuest, setIsGuest] = useState(false);
 
-  // 1. Manual Auth Check: Get user data from localStorage
-  const userJson = localStorage.getItem("user");
-  const user = userJson ? JSON.parse(userJson) : null;
-  const isGuest = localStorage.getItem("uc_guest") === "1";
+  useEffect(() => {
+    try {
+      const userJson = localStorage.getItem("user");
+      if (userJson && userJson !== "null") {
+        setUser(JSON.parse(userJson));
+      } else {
+        setUser(null);
+      }
+      setIsGuest(localStorage.getItem("uc_guest") === "1");
+    } catch (e) {
+      console.error("Navbar: Failed to parse user from localStorage", e);
+      setUser(null);
+    }
+  }, [location.pathname]);
 
   const handleSignOut = () => {
-    // Clear everything
     localStorage.removeItem("uc_guest");
     localStorage.removeItem("user");
+    setUser(null);
+    setIsGuest(false);
     navigate("/");
   };
 
-  // Determine roles from our stored user object
-  const isAdmin = user?.role === "admin";
-  const isStaff = user?.role === "staff";
-  const isLoggedIn = !!user || isGuest;
+  const role = user?.role?.toLowerCase();
+  const isAdmin = role === "admin";
+  const isStaff = role === "staff";
+  
+  // High-precision login check
+  const isLoggedIn = (user && (user.userId || user.id || user.user_id)) || isGuest;
+
+  const handleDashboardClick = () => {
+    if (location.pathname === "/dashboard") {
+      // If already on dashboard, force a reload or re-navigate to reset inner state
+      navigate("/dashboard", { replace: true });
+      window.location.href = "/dashboard"; 
+    } else {
+      navigate("/dashboard");
+    }
+  };
+
+  // Format full name: Use server provided fullName
+  const fullName = user?.fullName || "User";
+  const initial = (user?.firstName?.[0] || user?.fullName?.[0] || "U").toUpperCase();
 
   return (
     <nav className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-sm">
       <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <img src={logo} alt="UC SmartHelp" className="h-10 w-auto" />
-        </Link>
+        {location.pathname !== "/" ? (
+          <Link to="/" className="flex items-center gap-2 animate-in fade-in duration-300">
+            <img src={logo} alt="UC SmartHelp" className="h-10 w-auto" />
+          </Link>
+        ) : (
+          <div className="w-10" /> /* Spacer to maintain layout alignment */
+        )}
 
         {/* Navigation Links */}
         <div className="hidden items-center gap-6 md:flex">
@@ -55,57 +89,55 @@ const Navbar = () => {
 
         {/* User Actions */}
         <div className="flex items-center gap-3">
-          {isLoggedIn ? (
+          {isLoggedIn && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary overflow-hidden border-2 border-primary/10 hover:bg-primary/30 transition-all">
+                <button className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-sm font-bold text-primary-foreground shadow-sm hover:scale-105 active:scale-95 transition-all">
                   {isGuest ? (
                     <UserIcon className="h-5 w-5" />
                   ) : (
-                    <span>{(user?.firstName?.[0] || user?.fullName?.[0] || "U").toUpperCase()}</span>
+                    <span>{initial}</span>
                   )}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-56 p-2 rounded-xl">
                 {/* Profile Header */}
-                <div className="flex flex-col p-2 border-b mb-1">
-                  <span className="text-sm font-bold">
-                    {isGuest ? "Guest User" : user?.fullName || "User"}
+                <div className="flex flex-col px-2 py-3 border-b mb-2">
+                  <span className="text-sm font-black text-foreground uppercase tracking-tight">
+                    {isGuest ? "Guest User" : fullName}
                   </span>
                   {!isGuest && (
-                    <span className="text-xs text-muted-foreground">{user?.role?.toUpperCase()}</span>
+                    <span className="text-[10px] font-bold text-primary tracking-widest uppercase mt-0.5">
+                      {user?.role}
+                    </span>
                   )}
                 </div>
 
-                {/* Shared Menu Items */}
-                <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+                {/* Menu Items */}
+                <DropdownMenuItem onClick={handleDashboardClick} className="rounded-lg font-medium cursor-pointer">
                   Dashboard
                 </DropdownMenuItem>
+                
                 {!isGuest && (
                   <>
-                    <DropdownMenuItem onClick={() => navigate("/settings")}>
+                    <DropdownMenuItem onClick={() => navigate("/settings")} className="rounded-lg font-medium cursor-pointer">
                       Account Settings
                     </DropdownMenuItem>
                     {(isAdmin || isStaff) && (
-                      <DropdownMenuItem onClick={() => navigate("/dashboard")}>
-                        Reviews
+                      <DropdownMenuItem onClick={handleDashboardClick} className="rounded-lg font-medium cursor-pointer">
+                        View Reports
                       </DropdownMenuItem>
                     )}
                   </>
                 )}
 
-                <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+                <div className="my-1 border-t border-muted" />
+                
+                <DropdownMenuItem onClick={handleSignOut} className="rounded-lg font-bold text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
                   <LogOut className="mr-2 h-4 w-4" /> Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
-            /* Show Login/Get Started only on Home Page if not logged in */
-            location.pathname === "/" && (
-              <Button onClick={() => navigate("/login")} className="uc-gradient-btn text-primary-foreground">
-                GET STARTED
-              </Button>
-            )
           )}
         </div>
       </div>

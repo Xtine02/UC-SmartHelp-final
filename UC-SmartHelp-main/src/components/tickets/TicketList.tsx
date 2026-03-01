@@ -5,32 +5,58 @@ import { format } from "date-fns";
 import TicketDetailModal from "./TicketDetailModal";
 import FeedbackDialog from "./FeedbackDialog";
 
+interface Department {
+  id: string;
+  name: string;
+}
+
+interface Ticket {
+  id: string;
+  ticket_number: string;
+  subject: string;
+  status: "pending" | "in_progress" | "resolved";
+  created_at: string;
+  department_id: string;
+  departments?: Department | null;
+  description?: string;
+  profiles?: {
+    first_name: string;
+    last_name: string;
+  } | null;
+}
+
 const statusColors: Record<string, string> = {
-  pending: "bg-green-400 text-foreground",
-  in_progress: "bg-pink-400 text-foreground",
-  resolved: "bg-blue-400 text-foreground",
+  pending: "bg-green-400 text-foreground hover:bg-green-500",
+  in_progress: "bg-pink-400 text-foreground hover:bg-pink-500",
+  resolved: "bg-blue-400 text-foreground hover:bg-blue-500",
 };
 
 const TicketList = () => {
   // 1. Manual Auth Logic
-  const userJson = localStorage.getItem("user");
-  const user = userJson ? JSON.parse(userJson) : null;
+  let user = null;
+  try {
+    const savedUser = localStorage.getItem("user");
+    user = savedUser ? JSON.parse(savedUser) : null;
+  } catch (e) {
+    console.error("TicketList: Failed to parse user", e);
+  }
+  
   const isGuest = localStorage.getItem("uc_guest") === "1";
   
   // Role check logic
   const isStaffOrAdmin = user?.role === "staff" || user?.role === "admin";
 
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [filter, setFilter] = useState<string>("all");
   const [showFilters, setShowFilters] = useState<boolean>(true);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [feedbackTicket, setFeedbackTicket] = useState<any>(null);
+  const [feedbackTicket, setFeedbackTicket] = useState<Ticket | null>(null);
 
   const fetchTickets = async () => {
     try {
       // TODO: Replace with fetch('/api/get_tickets.php') for your MySQL backend
-      // For now, setting an empty array to prevent rendering crashes
+      // Using an empty array to prevent rendering crashes while database is pending
       setTickets([]);
     } catch (error) {
       console.error("Error fetching tickets:", error);
@@ -41,87 +67,91 @@ const TicketList = () => {
     if (user || isGuest) {
       fetchTickets();
     }
-  }, [user, isGuest]);
+  }, []);
 
-  const filteredTickets = filter === "all" ? tickets :
-    filter === "pending" ? tickets.filter(t => t.status === "pending") :
-    filter === "in_progress" ? tickets.filter(t => t.status === "in_progress") :
-    tickets.filter(t => t.status === "resolved");
+  const filteredTickets = tickets.filter(t => {
+    if (filter === "all") return true;
+    return t.status === filter;
+  });
 
-  const handleTicketClick = (t: any) => {
+  const handleTicketClick = (t: Ticket) => {
     setSelectedTicket(t);
   };
 
   const handleCloseModal = () => {
-    const ticket = selectedTicket;
+    const closedTicket = selectedTicket;
     setSelectedTicket(null);
     fetchTickets();
 
-    // Show feedback dialog for resolved tickets (student only)
-    if (!isStaffOrAdmin && ticket?.status === "resolved" && !isGuest) {
-      setFeedbackTicket(ticket);
+    // Show feedback dialog for resolved tickets (student only, not guest)
+    if (!isStaffOrAdmin && closedTicket?.status === "resolved" && !isGuest) {
+      setFeedbackTicket(closedTicket);
       setShowFeedback(true);
     }
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row gap-6">
         {/* Filter sidebar */}
-        <div className="space-y-2 min-w-[200px]">
+        <div className="space-y-4 min-w-[200px]">
           <button
             onClick={() => setShowFilters(prev => !prev)}
-            className="flex items-center gap-1 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold"
+            className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
-            <span className="text-lg">+</span> Filter
+            <span>Filters</span>
+            <span className={`transition-transform duration-300 ${showFilters ? 'rotate-180' : ''}`}>▼</span>
           </button>
+          
           {showFilters && (
-            <>            
-              <p className="text-xs font-bold text-muted-foreground uppercase px-3 mb-2">Status</p>
+            <div className="space-y-1 p-1 bg-secondary/20 rounded-xl border border-dashed animate-in slide-in-from-top-2">            
+              <p className="text-[10px] font-bold text-muted-foreground uppercase px-3 py-2 tracking-widest">By Status</p>
               {[
                 { id: "all", label: "All Tickets" },
                 { id: "pending", label: "Pending" },
                 { id: "in_progress", label: "In-Progress" },
-                { id: "resolved", label: "Resolved/Closed" },
+                { id: "resolved", label: "Resolved" },
               ].map((btn) => (
                 <button
                   key={btn.id}
                   onClick={() => setFilter(btn.id)}
-                  className={`block w-full text-left px-4 py-2 rounded-lg text-sm transition-colors ${
+                  className={`block w-full text-left px-4 py-3 rounded-lg text-sm font-bold transition-all ${
                     filter === btn.id 
-                      ? "bg-primary text-primary-foreground font-semibold shadow-sm" 
-                      : "hover:bg-secondary/80 text-muted-foreground"
+                      ? "bg-background text-primary shadow-sm" 
+                      : "hover:bg-background/50 text-muted-foreground"
                   }`}
                 >
                   {btn.label}
                 </button>
               ))}
-            </>
+            </div>
           )}
         </div>
 
         {/* Tickets Table */}
-        <div className="flex-1 rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="flex-1 rounded-2xl border bg-card shadow-lg overflow-hidden">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="w-8">
-                  <input type="checkbox" className="form-checkbox" />
-                </TableHead>
-                <TableHead className="font-bold">TICKET ID</TableHead>
-                <TableHead className="font-bold">SUBJECT</TableHead>
-                <TableHead className="font-bold">DEPARTMENT</TableHead>
-                <TableHead className="font-bold">STATUS</TableHead>
-                <TableHead className="font-bold">DATE SENT</TableHead>
+                <TableHead className="font-bold py-4">TICKET ID</TableHead>
+                <TableHead className="font-bold py-4">SUBJECT</TableHead>
+                <TableHead className="font-bold py-4">DEPARTMENT</TableHead>
+                <TableHead className="font-bold py-4">STATUS</TableHead>
+                <TableHead className="font-bold py-4 text-right">DATE</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredTickets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-16">
-                    <div className="flex flex-col items-center gap-2">
-                      <p className="text-lg font-medium">No tickets to display</p>
-                      <p className="text-sm">The list is currently empty.</p>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-20 bg-muted/5">
+                    <div className="flex flex-col items-center gap-3 opacity-60">
+                      <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center">
+                         <span className="text-2xl font-bold">!</span>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-foreground">No tickets found</p>
+                        <p className="text-sm">The list is currently empty.</p>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -129,21 +159,18 @@ const TicketList = () => {
                 filteredTickets.map((t) => (
                   <TableRow 
                     key={t.id} 
-                    className="cursor-pointer hover:bg-secondary/30 transition-colors" 
+                    className="cursor-pointer hover:bg-secondary/20 transition-colors" 
                     onClick={() => handleTicketClick(t)}
                   >
-                    <TableCell className="w-8">
-                      <input type="checkbox" className="form-checkbox" />
-                    </TableCell>
-                    <TableCell className="font-mono font-medium">{t.ticket_number}</TableCell>
-                    <TableCell className="font-medium">{t.subject}</TableCell>
-                    <TableCell>{t.departments?.name || "N/A"}</TableCell>
+                    <TableCell className="font-mono font-bold text-primary">{t.ticket_number}</TableCell>
+                    <TableCell className="font-bold text-foreground">{t.subject}</TableCell>
+                    <TableCell className="text-sm">{t.departments?.name || "N/A"}</TableCell>
                     <TableCell>
-                      <Badge className={`${statusColors[t.status] || ""} border-none`}>
+                      <Badge className={`${statusColors[t.status] || "bg-gray-400"} border-none font-bold uppercase text-[10px] tracking-wider px-2.5 py-0.5`}>
                         {t.status === "in_progress" ? "In-Progress" : t.status === "resolved" ? "Resolved" : "Pending"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-right text-muted-foreground text-xs font-medium">
                       {t.created_at ? format(new Date(t.created_at), "MMM d, yyyy") : "---"}
                     </TableCell>
                   </TableRow>

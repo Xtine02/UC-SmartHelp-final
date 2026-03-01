@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 const GuestDashboard = () => {
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-4">
       {/* Welcome banner - Simplified for the inner view */}
       <div className="rounded-xl uc-gradient px-8 py-10 bg-primary text-white text-center shadow-md">
         <h1 className="text-3xl font-bold italic md:text-4xl">Welcome, Guest!</h1>

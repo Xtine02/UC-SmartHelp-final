@@ -27,7 +27,9 @@ const Announcements = () => {
             <Card key={a.id}>
               <CardHeader>
                 <CardTitle>{a.title}</CardTitle>
-                <p className="text-sm text-muted-foreground">{format(new Date(a.created_at), "MMM d, yyyy")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {a.created_at ? format(new Date(a.created_at), "MMM d, yyyy") : "No date"}
+                </p>
               </CardHeader>
               <CardContent><p className="text-foreground">{a.content}</p></CardContent>
             </Card>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import TicketList from "@/components/tickets/TicketList";
 import ReviewAnalytics from "@/components/analytics/ReviewAnalytics";
 import AccountManagement from "@/components/admin/AccountManagement";
@@ -14,7 +15,6 @@ interface DeptStat {
 }
 
 const AdminDashboard = () => {
-  // 1. Manual Auth: Replace useAuth with localStorage
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
   
@@ -23,12 +23,11 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     const fetchStats = async () => {
-      // TODO: Replace with MySQL fetch (e.g., fetch('/api/admin_stats.php'))
-      // Setting mock data for now to ensure the UI renders without crashing
+      // Mock stats to prevent empty state in UI
       const mockStats: DeptStat[] = [
-        { name: "Registrar", all: 0, pending: 0, in_progress: 0, resolved: 0 },
-        { name: "Accounting", all: 0, pending: 0, in_progress: 0, resolved: 0 },
-        { name: "IT Services", all: 0, pending: 0, in_progress: 0, resolved: 0 },
+        { name: "Registrar's Office", all: 0, pending: 0, in_progress: 0, resolved: 0 },
+        { name: "Accounting Office", all: 0, pending: 0, in_progress: 0, resolved: 0 },
+        { name: "CCS Office", all: 0, pending: 0, in_progress: 0, resolved: 0 },
       ];
       setDeptStats(mockStats);
     };
@@ -36,102 +35,101 @@ const AdminDashboard = () => {
   }, []);
 
   const navItems = [
-    { key: "dashboard", label: "Dashboard Overview" },
-    { key: "tickets", label: "Manage Tickets" },
-    { key: "accounts", label: "User Accounts" },
-    { key: "reviews", label: "Feedback & Reviews" },
+    { key: "dashboard", label: "Analytics Overview" },
+    { key: "tickets", label: "System Tickets" },
+    { key: "accounts", label: "User Management" },
+    { key: "reviews", label: "Public Feedback" },
   ] as const;
 
   return (
-    <div className="container py-8 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row gap-8">
-        {/* Sidebar Navigation */}
-        <div className="w-full md:w-64 space-y-2">
-          <div className="px-3 py-4 bg-primary/5 rounded-xl mb-4">
-            <p className="text-xs font-bold text-primary uppercase tracking-wider">System Administrator</p>
-            <p className="text-sm text-muted-foreground truncate">{user?.email || "admin@uc.edu.ph"}</p>
-          </div>
-          
-          <nav className="space-y-1">
-            {navItems.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setView(item.key)}
-                className={`flex w-full items-center px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                  view === item.key 
-                    ? "bg-primary text-primary-foreground shadow-md" 
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
+    <div className="flex flex-col md:flex-row gap-8 p-4 animate-in fade-in duration-500">
+      {/* Sidebar Navigation */}
+      <div className="w-full md:w-72 space-y-4">
+        <div className="px-5 py-6 bg-primary text-primary-foreground rounded-2xl shadow-lg">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">System Administrator</p>
+          <p className="text-lg font-bold truncate">{user?.fullName || "Admin"}</p>
         </div>
+        
+        <nav className="space-y-1 p-1 bg-secondary/30 rounded-2xl border">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setView(item.key)}
+              className={`flex w-full items-center px-5 py-4 rounded-xl text-sm font-bold transition-all ${
+                view === item.key 
+                  ? "bg-background text-primary shadow-sm" 
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 min-h-[600px] bg-card rounded-2xl border p-6 shadow-sm">
-          {view === "dashboard" && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold tracking-tight">Helpdesk Analytics</h2>
-                <Badge variant="outline" className="px-3 py-1">Real-time Data</Badge>
+      {/* Main Content Area */}
+      <div className="flex-1 min-h-[600px] bg-card rounded-2xl border p-8 shadow-xl">
+        {view === "dashboard" && (
+          <div className="space-y-10 animate-in fade-in duration-500">
+            <div className="flex justify-between items-center border-b pb-6">
+              <div>
+                <h2 className="text-3xl font-extrabold tracking-tight">System Analytics</h2>
+                <p className="text-muted-foreground mt-1">Real-time performance metrics across all departments.</p>
               </div>
+              <Badge variant="secondary" className="px-4 py-1.5 rounded-full text-xs font-bold bg-green-100 text-green-700 hover:bg-green-100 border-none">
+                 LIVE SYSTEM
+              </Badge>
+            </div>
 
-              {/* Departments Stats Table */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  Departmental Breakdown
-                </h3>
-                <div className="rounded-xl border overflow-hidden bg-background">
-                  <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow>
-                        <TableHead className="font-bold">Department</TableHead>
-                        <TableHead className="text-center font-bold">Total Tickets</TableHead>
-                        <TableHead className="text-center font-bold">Pending</TableHead>
-                        <TableHead className="text-center font-bold">In-Progress</TableHead>
-                        <TableHead className="text-center font-bold">Resolved</TableHead>
+            {/* Departments Stats Table */}
+            <div className="space-y-5">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                Departmental Efficiency
+              </h3>
+              <div className="rounded-2xl border overflow-hidden shadow-sm bg-background">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead className="font-bold py-4">Department</TableHead>
+                      <TableHead className="text-center font-bold py-4">Total</TableHead>
+                      <TableHead className="text-center font-bold py-4">Pending</TableHead>
+                      <TableHead className="text-center font-bold py-4">In-Progress</TableHead>
+                      <TableHead className="text-center font-bold py-4">Resolved</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deptStats.map((d) => (
+                      <TableRow key={d.name} className="hover:bg-muted/20 transition-colors">
+                        <TableCell className="font-bold text-foreground py-4">{d.name}</TableCell>
+                        <TableCell className="text-center font-semibold">{d.all}</TableCell>
+                        <TableCell className="text-center">
+                            <span className="text-amber-600 font-bold px-3 py-1 bg-amber-50 rounded-full text-xs">{d.pending}</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                            <span className="text-blue-600 font-bold px-3 py-1 bg-blue-50 rounded-full text-xs">{d.in_progress}</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                            <span className="text-green-600 font-bold px-3 py-1 bg-green-50 rounded-full text-xs">{d.resolved}</span>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {deptStats.length > 0 ? (
-                        deptStats.map((d) => (
-                          <TableRow key={d.name} className="hover:bg-muted/30">
-                            <TableCell className="font-medium">{d.name}</TableCell>
-                            <TableCell className="text-center">{d.all}</TableCell>
-                            <TableCell className="text-center">
-                                <span className="text-amber-600 font-semibold">{d.pending}</span>
-                            </TableCell>
-                            <TableCell className="text-center text-blue-600 font-semibold">{d.in_progress}</TableCell>
-                            <TableCell className="text-center text-green-600 font-semibold">{d.resolved}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                            No department data available.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              {/* Chatbot Analytics Section */}
-              <div className="pt-4 border-t">
-                <ChatbotAnalytics />
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </div>
-          )}
 
-          {/* Sub-view Rendering */}
-          <div className="animate-in slide-in-from-right-4 duration-500">
-            {view === "tickets" && <TicketList />}
-            {view === "accounts" && <AccountManagement />}
-            {view === "reviews" && <ReviewAnalytics />}
+            {/* Chatbot Analytics Section */}
+            <div className="pt-8 border-t border-dashed">
+              <ChatbotAnalytics />
+            </div>
           </div>
+        )}
+
+        {/* Sub-view Rendering */}
+        <div className="animate-in slide-in-from-right-4 duration-500">
+          {view === "tickets" && <TicketList />}
+          {view === "accounts" && <AccountManagement />}
+          {view === "reviews" && <ReviewAnalytics />}
         </div>
       </div>
     </div>

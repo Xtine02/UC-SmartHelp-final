@@ -1,48 +1,48 @@
-import express from 'express';
-import mysql from 'mysql2';
-import cors from 'cors';
+const express = require('express');
+const mysql = require('mysql2/promise');
+const bcrypt = require('bcrypt');
+const cors = require('cors');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const app = express();
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
-const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '', 
-  database: 'uc_smarthelp'
+const db = mysql.createPool({
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'uc_smarthelp',
 });
 
-db.connect(err => {
-  if (err) console.error('❌ Connection Error:', err.message);
-  else console.log('✅ Connected to MySQL Database');
+app.post('/api/tickets', async (req, res) => {
+  const { subject, description, department, sender_id } = req.body;
+  if (!subject || !description || !department || !sender_id) {
+    return res.status(400).json({ error: "Missing fields" });
+  }
+  try {
+    const [result] = await db.query(
+      'INSERT INTO tickets (subject, description, department, user_id, status) VALUES (?, ?, ?, ?, ?)',
+      [subject, description, department, sender_id, 'pending']
+    );
+    res.status(201).json({ message: "Success", ticketId: result.insertId });
+  } catch (error) {
+    res.status(500).json({ error: "Database Error", details: error.sqlMessage });
+  }
 });
 
-// --- FIX PARA SA MANUAL LOGIN ---
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  // Hinahanap ang user sa MySQL table mo
-  const query = "SELECT * FROM users WHERE email = ? AND password = ?";
-  
-  db.query(query, [email, password], (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
-    
-    if (results.length > 0) {
-      res.json(results[0]); // Ito ang JSON na hinihintay ng Frontend
-    } else {
-      res.status(401).json({ error: "Invalid email or password" });
-    }
-  });
+  try {
+    const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    const user = rows[0];
+    if (user && await bcrypt.compare(password, user.password)) {
+      res.json({ id: user.id, role: user.role, fullName: user.full_name });
+    } else res.status(401).json({ error: "Invalid" });
+  } catch (error) { res.status(500).json({ error: "Error" }); }
 });
 
-// --- FIX PARA SA GOOGLE LOGIN ---
-app.post('/api/google-auth', (req, res) => {
-  const { email, firstName, lastName } = req.body;
-  const query = "INSERT INTO users (email, first_name, last_name) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE first_name = VALUES(first_name)";
-  db.query(query, [email, firstName, lastName], (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ email, firstName, lastName, id: result.insertId });
-  });
-});
-
-app.listen(3000, () => console.log('🚀 Server is awake on port 3000'));
+const PORT = 3000;
+app.listen(PORT, () => console.log(`Backend on port ${PORT}`));

@@ -40,16 +40,18 @@ const App = () => (
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           
-          {/* Centralized Dashboard Route */}
+          {/* Centralized Dashboard Route (Handles Role-based Redirection and Layout) */}
           <Route path="/dashboard" element={<Dashboard />} />
 
-          {/* Individual Dashboard Routes with Navbar included */}
-          <Route path="/StudentDashboard" element={<><Navbar /><StudentDashboard /></>} />
-          <Route path="/StaffDashboard" element={<><Navbar /><StaffDashboard /></>} />
-          <Route path="/AdminDashboard" element={<><Navbar /><AdminDashboard /></>} />
-          <Route path="/GuestDashboard" element={<><Navbar /><GuestDashboard /></>} />
+          {/* Individual Dashboard Routes (Optional, can be used for direct linking) */}
+          {/* Note: These individual routes now rely on the sub-components which don't have Navbars internally, 
+              so we add one here for these specific routes. */}
+          <Route path="/StudentDashboard" element={<><Navbar /><div className="container mx-auto p-4 md:p-8"><StudentDashboard /></div></>} />
+          <Route path="/StaffDashboard" element={<><Navbar /><div className="container mx-auto p-4 md:p-8"><StaffDashboard /></div></>} />
+          <Route path="/AdminDashboard" element={<><Navbar /><div className="container mx-auto p-4 md:p-8"><AdminDashboard /></div></>} />
+          <Route path="/GuestDashboard" element={<><Navbar /><div className="container mx-auto p-4 md:p-8"><GuestDashboard /></div></>} />
           
-          {/* Support Pages */}
+          {/* Support Pages (These pages HAVE Navbar inside them already) */}
           <Route path="/settings" element={<Settings />} />
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/about" element={<About />} />

@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Bot, User } from "lucide-react";
@@ -11,7 +10,15 @@ interface Message {
 }
 
 const Chatbot = () => {
-  const { user } = useAuth();
+  // Manual Auth
+  let user = null;
+  try {
+    const userJson = localStorage.getItem("user");
+    user = userJson ? JSON.parse(userJson) : null;
+  } catch (e) {
+    console.error("Chatbot: Failed to parse user", e);
+  }
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,10 +31,11 @@ const Chatbot = () => {
   // Load previous messages
   useEffect(() => {
     if (!user) return;
+    const userId = user.userId || user.id;
     supabase
       .from("chatbot_messages")
       .select("role, content")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: true })
       .limit(50)
       .then(({ data }) => {
@@ -37,6 +45,7 @@ const Chatbot = () => {
 
   const handleSend = async () => {
     if (!input.trim() || !user) return;
+    const userId = user.userId || user.id;
     const userMsg: Message = { role: "user", content: input };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
@@ -44,7 +53,7 @@ const Chatbot = () => {
 
     // Save user message
     await supabase.from("chatbot_messages").insert({
-      user_id: user.id,
+      user_id: userId,
       role: "user",
       content: input,
     });
@@ -60,7 +69,7 @@ const Chatbot = () => {
       setMessages((prev) => [...prev, assistantMsg]);
 
       await supabase.from("chatbot_messages").insert({
-        user_id: user.id,
+        user_id: userId,
         role: "assistant",
         content: assistantContent,
       });

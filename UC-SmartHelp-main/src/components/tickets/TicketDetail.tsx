@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +14,11 @@ interface Props {
 }
 
 const TicketDetail = ({ ticket, onBack }: Props) => {
-  const { user, roles } = useAuth();
+  // Manual Auth Patterns
+  const userJson = localStorage.getItem("user");
+  const user = userJson ? JSON.parse(userJson) : null;
+  const roles = user?.role ? [user.role] : [];
+  
   const { toast } = useToast();
   const [messages, setMessages] = useState<any[]>([]);
   const [reply, setReply] = useState("");
@@ -41,7 +44,7 @@ const TicketDetail = ({ ticket, onBack }: Props) => {
     setLoading(true);
     await supabase.from("ticket_messages").insert({
       ticket_id: ticket.id,
-      sender_id: user.id,
+      sender_id: user.userId || user.id,
       content: reply,
     });
     setReply("");

@@ -1,39 +1,33 @@
 const express = require('express');
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise');
+const bcrypt = require('bcrypt');
 const cors = require('cors');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const app = express();
-
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
-// 1. Database Connection (Layer 3)
-const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '', // Default XAMPP password is empty
-  database: 'uc_smarthelp' 
+const db = mysql.createPool({
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'uc_smarthelp',
 });
 
-db.connect(err => {
-  if (err) {
-    console.error('❌ Database connection failed:', err.message);
-  } else {
-    console.log('✅ Connected to MySQL Database');
-  }
+app.post('/api/tickets', async (req, res) => {
+  const { subject, description, department, sender_id } = req.body;
+  if (!subject || !description || !department || !sender_id) return res.status(400).json({ error: "Error" });
+  try {
+    const [result] = await db.query(
+      'INSERT INTO tickets (subject, description, department, user_id, status) VALUES (?, ?, ?, ?, ?)', 
+      [subject, description, department, sender_id, 'pending']
+    );
+    res.status(201).json({ message: "Done", ticketId: result.insertId });
+  } catch (error) { res.status(500).json({ error: "DB Error" }); }
 });
 
-// 2. Google Auth Endpoint (Layer 2)
-app.post('/api/google-auth', (req, res) => {
-  const { email, firstName, lastName } = req.body;
-  
-  // Logic to insert or update the user in MySQL
-  const query = "INSERT INTO users (email, first_name, last_name) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE first_name = VALUES(first_name)";
-  
-  db.query(query, [email, firstName, lastName], (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ email, firstName, lastName, id: result.insertId });
-  });
-});
-
-app.listen(3000, () => console.log('🚀 Server running on http://localhost:3000'));
+const PORT = 3000;
+app.listen(PORT, () => console.log(`Backend on port ${PORT}`));

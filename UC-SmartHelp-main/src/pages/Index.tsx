@@ -12,7 +12,8 @@ import logo from "@/assets/uc-smarthelp-logo.jpg";
 const Index = () => {
   const navigate = useNavigate();
 
-  // Redirect if already logged in
+  // Redirect if already logged in - REMOVED to allow seeing home page
+  /*
   useEffect(() => {
     const user = localStorage.getItem("user");
     const isGuest = localStorage.getItem("uc_guest") === "1";
@@ -20,6 +21,7 @@ const Index = () => {
       navigate("/dashboard");
     }
   }, [navigate]);
+  */
 
   const features = [
     { 
@@ -52,14 +54,17 @@ const Index = () => {
             transition={{ duration: 0.6 }}
             className="flex-1 space-y-6 text-center md:text-left"
           >
-            {/* Logo with fallback if image fails */}
-            <div className="flex justify-center md:justify-start">
-              <img 
-                src={logo} 
-                alt="UC SmartHelp Logo" 
-                className="h-20 w-auto mb-4 object-contain"
-                onError={(e) => (e.currentTarget.style.display = 'none')} 
-              />
+            {/* Cropped Logo - Aggressive crop to remove bottom text and top cap */}
+            <div className="flex justify-center md:justify-start relative group mb-4">
+              <div className="absolute inset-0 bg-primary/10 rounded-full blur-3xl opacity-40 scale-150" />
+              <div className="relative h-40 w-64 overflow-hidden flex items-center justify-center">
+                <img 
+                  src={logo} 
+                  alt="UC SmartHelp Logo" 
+                  className="w-full scale-[2.2] -translate-y-4 object-contain mix-blend-multiply contrast-[1.1] brightness-[1.05]"
+                  onError={(e) => (e.currentTarget.style.display = 'none')} 
+                />
+              </div>
             </div>
             
             <h1 className="text-4xl font-extrabold leading-tight text-foreground md:text-6xl tracking-tight">
@@ -129,7 +134,7 @@ const Index = () => {
       <footer className="border-t py-10 bg-card">
         <div className="container text-center">
           <p className="text-sm font-medium text-muted-foreground">
-            © {new Date().getFullYear()} UC SmartHelp — University of Cebu. All rights reserved.
+            © {new Date().getFullYear()} UC SmartHelp. All rights reserved.
           </p>
         </div>
       </footer>

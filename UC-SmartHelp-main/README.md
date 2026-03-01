@@ -33,8 +33,17 @@ cd <YOUR_PROJECT_NAME>
 npm i
 
 # Step 4: Start the development server with auto-reloading and an instant preview.
+for front end
 npm run dev
 ```
+for back end
+npm run server
+or
+
+- npm install -g tsx
+- npm install
+- npx tsx server.ts
+
 
 **Edit a file directly in GitHub**
 
