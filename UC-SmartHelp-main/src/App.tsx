@@ -22,6 +22,9 @@ import StudentDashboard from "@/components/dashboard/StudentDashboard";
 import StaffDashboard from "@/components/dashboard/StaffDashboard";
 import AdminDashboard from "@/components/dashboard/AdminDashboard";
 import GuestDashboard from "@/components/dashboard/GuestDashboard";
+import AccountingDashboard from "@/components/dashboard/AccountingDashboard";
+import ScholarshipDashboard from "@/components/dashboard/ScholarshipDashboard";
+import ReviewModal from "@/components/ReviewModal";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +33,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <ReviewModal />
       <BrowserRouter>
         <Routes>
           {/* Main Public Routes */}
@@ -39,8 +43,18 @@ const App = () => (
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           
-          {/* Student Dashboard Route */}
-          <Route path="/studentdashboard" element={<StudentDashboard />} />
+          {/* Dashboard Routes by Role */}
+          <Route path="/student-dashboard" element={<StudentDashboard />} />
+          <Route path="/StaffDashboard" element={<StaffDashboard />} />
+          <Route path="/AdminDashboard" element={<AdminDashboard />} />
+          <Route path="/AccountingDashboard" element={<AccountingDashboard />} />
+          <Route path="/ScholarshipDashboard" element={<ScholarshipDashboard />} />
+          <Route path="/guest-dashboard" element={<GuestDashboard />} />
+          
+          {/* Backward Compatibility */}
+          <Route path="/StudentDashboard" element={<StudentDashboard />} />
+          <Route path="/GuestDashboard" element={<GuestDashboard />} />
+          <Route path="/dashboard" element={<StudentDashboard />} />
           
           {/* Tickets Page */}
           <Route path="/tickets" element={<TicketsPage />} />

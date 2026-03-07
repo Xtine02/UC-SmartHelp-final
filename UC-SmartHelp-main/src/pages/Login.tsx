@@ -20,6 +20,24 @@ const Login = () => {
   // Bulletproof API URL Selection
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
+  // Helper function to get redirect path based on user role
+  const getRedirectPath = (user: any) => {
+    const role = (user?.role || "student").toLowerCase();
+    const department = (user?.department || "").toLowerCase();
+
+    if (role === "admin") return "/admin-dashboard";
+    if (role === "staff") {
+      if (department === "accounting office" || department === "accounting") {
+        return "/AccountingDashboard";
+      }
+      if (department === "scholarship") {
+        return "/scholarship-dashboard";
+      }
+      return "/staff-dashboard";
+    }
+    return "/student-dashboard";
+  };
+
   // --- GOOGLE LOGIN LOGIC ---
   const handleGoogleLogin = async () => {
     if (loading) return;
@@ -57,7 +75,7 @@ const Login = () => {
       localStorage.setItem("user", JSON.stringify(data));
       
       toast({ title: "Welcome!", description: `Signed in as ${data.firstName || 'User'}` });
-      navigate("/studentdashboard");
+      navigate(getRedirectPath(data));
 
     } catch (error: any) {
       console.error("Auth Error:", error);
@@ -122,7 +140,7 @@ const Login = () => {
           userId: data.userId || data.id || data.user_id
         };
         localStorage.setItem("user", JSON.stringify(userData));
-        navigate("/studentdashboard");
+        navigate(getRedirectPath(userData));
       } else {
         throw new Error(data.error || "Invalid credentials");
       }
@@ -141,13 +159,13 @@ const Login = () => {
     localStorage.removeItem("user");
     localStorage.setItem('uc_guest', '1');
     toast({ title: "Guest Mode Enabled" });
-    navigate("/studentdashboard");
+    navigate("/GuestDashboard");
   };
 
   const handleClose = () => {
     const isGuest = localStorage.getItem("uc_guest") === "1";
     if (isGuest) {
-      navigate("/studentdashboard");
+      navigate("/GuestDashboard");
     } else {
       navigate("/");
     }

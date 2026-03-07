@@ -30,4 +30,4 @@ app.post('/api/tickets', async (req, res) => {
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`Backend on port ${PORT}`));
+app.listen(PORT, () => console.log(`server is running in port 3000`));

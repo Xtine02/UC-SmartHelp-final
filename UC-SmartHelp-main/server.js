@@ -20,13 +20,12 @@ const db = mysql.createPool({
 
 // Verify connection
 db.getConnection()
-  .then(() => console.log('Successfully connected to MySQL database'))
-  .catch(err => console.error('FAILED TO CONNECT TO MYSQL:', err.message));
+  .then(() => { /* Success */ })
+  .catch(err => { /* Error suppressed */ });
 
 // Authentication routes
 app.post('/api/register', async (req, res) => {
   const { firstName, lastName, email, password } = req.body;
-  console.log('Registration attempt:', email);
   
   if (!firstName || !lastName || !email || !password) {
     return res.status(400).json({ error: "All fields are required" });
@@ -35,7 +34,6 @@ app.post('/api/register', async (req, res) => {
   try {
     const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) {
-      console.log('Registration failed: Email already exists');
       return res.status(400).json({ error: "Email already registered" });
     }
 
@@ -45,7 +43,6 @@ app.post('/api/register', async (req, res) => {
       [firstName, lastName, email, hashedPassword, 'student']
     );
 
-    console.log('Registration successful for:', email);
     res.status(201).json({
       id: result.insertId,
       userId: result.insertId,
@@ -56,19 +53,16 @@ app.post('/api/register', async (req, res) => {
       fullName: `${firstName} ${lastName}`
     });
   } catch (error) {
-    console.error('REGISTRATION ERROR:', error);
     res.status(500).json({ error: "Registration failed", details: error.message });
   }
 });
 
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  console.log('Login attempt:', email);
   try {
     const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
     const user = rows[0];
     if (user && user.password && await bcrypt.compare(password, user.password)) {
-      console.log('Login successful:', email);
       res.json({
         id: user.id,
         userId: user.id,
@@ -79,11 +73,9 @@ app.post('/api/login', async (req, res) => {
         email: user.email
       });
     } else {
-      console.log('Login failed: Invalid credentials');
       res.status(401).json({ error: "Invalid credentials" });
     }
   } catch (error) {
-    console.error('LOGIN ERROR:', error);
     res.status(500).json({ error: "Login error", details: error.message });
   }
 });
@@ -112,7 +104,6 @@ app.post('/api/google-auth', async (req, res) => {
       email: user.email 
     });
   } catch (error) {
-    console.error('GOOGLE AUTH ERROR:', error);
     res.status(500).json({ error: "Google Auth error", details: error.message });
   }
 });
@@ -132,7 +123,6 @@ app.post('/api/tickets', async (req, res) => {
     );
     res.status(201).json({ message: "Ticket created successfully", ticketId: result.insertId, ticket_number });
   } catch (error) {
-    console.error('TICKET CREATION ERROR:', error);
     res.status(500).json({ error: "Database Error", details: error.message });
   }
 });
@@ -153,10 +143,10 @@ app.get('/api/tickets', async (req, res) => {
     const [rows] = await db.query(query, params);
     res.json(rows);
   } catch (error) {
-    console.error('FETCH TICKETS ERROR:', error);
     res.status(500).json({ error: "Failed to fetch tickets", details: error.message });
   }
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
+app.listen(PORT, () => console.log(`server is running in port 3000`));
+

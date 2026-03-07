@@ -29,6 +29,8 @@ interface Ticket {
   created_at: string;
   sender_id: string;
   full_name?: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 type SortConfig = {
@@ -36,7 +38,7 @@ type SortConfig = {
   direction: "asc" | "desc";
 } | null;
 
-const StaffDashboard = () => {
+const ScholarshipDashboard = () => {
   const { toast } = useToast();
   const [stats, setStats] = useState({ pending: 0, in_progress: 0, resolved: 0 });
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -51,12 +53,16 @@ const StaffDashboard = () => {
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
       const response = await fetch(`${API_URL}/api/tickets`);
       if (response.ok) {
-        const data = await response.json();
-        setTickets(data);
+        const allTickets = await response.json();
+        const scholarshipTickets = allTickets.filter((t: any) => 
+          t.department?.toLowerCase().includes("scholarship")
+        );
+        setTickets(scholarshipTickets);
+        
         setStats({
-          pending: data.filter((t: any) => t.status === "pending").length,
-          in_progress: data.filter((t: any) => t.status === "in_progress").length,
-          resolved: data.filter((t: any) => t.status === "resolved").length
+          pending: scholarshipTickets.filter((t: any) => t.status === "pending").length,
+          in_progress: scholarshipTickets.filter((t: any) => t.status === "in_progress").length,
+          resolved: scholarshipTickets.filter((t: any) => t.status === "resolved").length
         });
       }
     } catch (error) {
@@ -85,7 +91,7 @@ const StaffDashboard = () => {
 
   const handleDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selectedIds.size} ticket(s)?`)) return;
+    if (!confirm(`Permanently delete ${selectedIds.size} selected ticket(s)?`)) return;
 
     try {
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -118,9 +124,9 @@ const StaffDashboard = () => {
     if (sortConfig) {
       result.sort((a, b) => {
         const aVal = (a[sortConfig.key] || "").toString().toLowerCase();
-        const bValue = (b[sortConfig.key] || "").toString().toLowerCase();
-        if (aVal < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+        const bVal = (b[sortConfig.key] || "").toString().toLowerCase();
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
         return 0;
       });
     }
@@ -133,7 +139,7 @@ const StaffDashboard = () => {
       <TableHead className="font-bold py-4">
         <button 
           onClick={() => handleSort(sortKey)}
-          className={`flex items-center gap-1 hover:text-primary transition-colors uppercase ${isActive ? 'text-primary' : ''}`}
+          className={`flex items-center gap-1 hover:text-blue-600 transition-colors uppercase ${isActive ? 'text-blue-700' : ''}`}
         >
           {label}
           {isActive ? (
@@ -151,9 +157,9 @@ const StaffDashboard = () => {
       <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
         <main className="flex-1 container mx-auto p-4 md:p-8">
-          <div className="space-y-6 p-4">
+          <div className="space-y-6">
             <button onClick={() => setView("tickets")} className="text-sm font-medium text-primary hover:underline transition-all">
-              &larr; Back to Dashboard Overview
+              &larr; Back to Scholarship Overview
             </button>
             <div className="bg-card rounded-2xl border p-6 shadow-sm">
               <ReviewAnalytics />
@@ -188,32 +194,38 @@ const StaffDashboard = () => {
       </AlertDialog>
 
       <main className="flex-1 container mx-auto p-4 md:p-8 animate-in fade-in duration-500">
-        <div className="space-y-8 p-4">
-          <div className="flex justify-between items-center bg-primary/5 p-6 rounded-2xl border border-primary/10">
+        <div className="space-y-8">
+          {/* Header */}
+          <div className="flex justify-between items-center bg-blue-50 p-6 rounded-2xl border border-blue-100">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Staff Overview</h1>
-              <p className="text-muted-foreground">Manage and respond to student inquiries.</p>
+              <h1 className="text-3xl font-black tracking-tight text-blue-700 uppercase italic">Scholarship Dashboard</h1>
+              <p className="text-blue-600 font-medium">Manage and process student scholarship applications.</p>
             </div>
-            <button onClick={() => setView("reviews")} className="bg-primary text-primary-foreground px-6 py-2 rounded-xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all">
+            <button 
+              onClick={() => setView("reviews")}
+              className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all"
+            >
               View Analytics
             </button>
           </div>
 
+          {/* Stats */}
           <div className="grid gap-6 sm:grid-cols-3">
             <div className="rounded-2xl p-8 text-center shadow-md border-b-4 border-amber-400 bg-amber-50">
               <p className="text-5xl font-extrabold text-amber-600 mb-2">{stats.pending}</p>
-              <p className="text-sm font-bold text-amber-800 uppercase tracking-wider">Pending</p>
+              <p className="text-sm font-bold text-amber-800 uppercase tracking-wider">Pending Applications</p>
             </div>
             <div className="rounded-2xl p-8 text-center shadow-md border-b-4 border-blue-400 bg-blue-50">
               <p className="text-5xl font-extrabold text-blue-600 mb-2">{stats.in_progress}</p>
-              <p className="text-sm font-bold text-blue-800 uppercase tracking-wider">In-Progress</p>
+              <p className="text-sm font-bold text-blue-800 uppercase tracking-wider">Processing</p>
             </div>
             <div className="rounded-2xl p-8 text-center shadow-md border-b-4 border-emerald-400 bg-emerald-50">
               <p className="text-5xl font-extrabold text-emerald-600 mb-2">{stats.resolved}</p>
-              <p className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Resolved</p>
+              <p className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Approved/Closed</p>
             </div>
           </div>
 
+          {/* Table */}
           <div className="space-y-4">
             {selectedIds.size > 0 && (
               <div className="flex items-center justify-between bg-destructive/10 p-4 rounded-xl border border-destructive/20 animate-in slide-in-from-top-4">
@@ -224,7 +236,7 @@ const StaffDashboard = () => {
               </div>
             )}
 
-            <h2 className="text-xl font-bold text-foreground px-1">All Tickets</h2>
+            <h2 className="text-xl font-bold text-foreground px-1">Active Scholarship Tickets</h2>
             <div className="rounded-2xl border bg-card overflow-hidden shadow-sm">
               <Table>
                 <TableHeader className="bg-muted/50">
@@ -245,8 +257,8 @@ const StaffDashboard = () => {
                 <TableBody>
                   {tickets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-20 bg-muted/5">
-                        No tickets found.
+                      <TableCell colSpan={6} className="text-center py-20 text-muted-foreground">
+                        No scholarship applications found.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -262,19 +274,19 @@ const StaffDashboard = () => {
                             onCheckedChange={() => toggleSelect(t.id)}
                           />
                         </TableCell>
-                        <TableCell className="font-mono font-bold text-primary">{t.ticket_number}</TableCell>
+                        <TableCell className="font-mono font-bold text-blue-600">{t.ticket_number}</TableCell>
                         <TableCell className="font-medium">{t.subject}</TableCell>
                         <TableCell className="text-sm font-bold">{t.full_name || "Unknown"}</TableCell>
                         <TableCell className="text-muted-foreground">{format(new Date(t.created_at), "MMM d, yyyy")}</TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select value={t.status} onValueChange={(v) => handleStatusChange(t.id, v)}>
-                            <SelectTrigger className="w-36 h-9 rounded-lg">
+                            <SelectTrigger className="w-36">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="pending">Pending</SelectItem>
-                              <SelectItem value="in_progress">In-Progress</SelectItem>
-                              <SelectItem value="resolved">Resolved/Closed</SelectItem>
+                              <SelectItem value="in_progress">Processing</SelectItem>
+                              <SelectItem value="resolved">Approved</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -299,4 +311,4 @@ const StaffDashboard = () => {
   );
 };
 
-export default StaffDashboard;
+export default ScholarshipDashboard;

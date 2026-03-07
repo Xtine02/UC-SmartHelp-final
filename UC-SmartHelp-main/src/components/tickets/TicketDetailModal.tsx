@@ -46,8 +46,16 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false }: Props) => {
   const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
 
   const fetchMessages = async () => {
-    // MySQL Integration Pending
-    setMessages([]); 
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+      const response = await fetch(`${API_URL}/api/tickets/${ticket.id}/responses`);
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data);
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
   };
 
   const fetchDepartments = async () => {
@@ -72,14 +80,33 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false }: Props) => {
   const handleSendReply = async () => {
     if (!reply.trim() || !user) return;
     setLoading(true);
-    console.log("Reply submitted:", reply);
     
-    setTimeout(() => {
-      setReply("");
-      setShowReplyBox(false);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+      const userId = user.userId || user.id || user.user_id;
+      
+      const response = await fetch(`${API_URL}/api/tickets/${ticket.id}/responses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          message: reply.trim()
+        })
+      });
+
+      if (response.ok) {
+        setReply("");
+        setShowReplyBox(false);
+        fetchMessages();
+        toast({ title: "Reply sent successfully" });
+      } else {
+        throw new Error("Failed to send reply");
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
       setLoading(false);
-      toast({ title: "Reply sent (Database Pending)" });
-    }, 500);
+    }
   };
 
   const handleForward = async () => {

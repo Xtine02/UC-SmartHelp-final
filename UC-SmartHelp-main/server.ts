@@ -31,22 +31,55 @@ db.getConnection()
       if (!columnNames.includes('department')) {
         await connection.query("ALTER TABLE tickets ADD COLUMN department VARCHAR(100)");
       }
+
+      // Auto-migration: Ensure users table has department column
+      const [userColumns]: any = await connection.query("SHOW COLUMNS FROM users");
+      const userColumnNames = userColumns.map((c: any) => c.Field);
+      if (!userColumnNames.includes('department')) {
+        await connection.query("ALTER TABLE users ADD COLUMN department VARCHAR(100)");
+      }
+
+      // Create ticket_responses table if not exists
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS ticket_responses (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ticket_id INT NOT NULL,
+          user_id INT NOT NULL,
+          message TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (ticket_id) REFERENCES tickets(id),
+          FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+      `);
+
+      // Create reviews table
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS reviews (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NULL,
+          is_helpful BOOLEAN NOT NULL,
+          comment TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+      `);
     } catch (err: any) {
-      console.error('MIGRATION ERROR:', err.message);
+      // Error suppressed
     }
     connection.release();
   })
   .catch((err) => {
-    console.error('FAILED TO CONNECT TO MYSQL:', err.message);
+    // Error suppressed
   });
 
 const formatUserResponse = (user: any) => {
-  const id = user.id ?? user.userId ?? user.user_id ?? user.ID;
+  const id = user.id ?? user.user_id ?? user.ID ?? user.userId;
   return {
     id: id,
     userId: id,
     user_id: id,
     role: user.role,
+    department: user.department,
     firstName: user.first_name || user.firstName,
     lastName: user.last_name || user.lastName,
     fullName: `${user.first_name || user.firstName} ${user.last_name || user.lastName}`,
@@ -68,7 +101,11 @@ app.post('/api/register', async (req: Request, res: Response) => {
       const [updated] = await db.query<RowDataPacket[]>('SELECT * FROM users WHERE email = ?', [email]);
       user = updated[0];
     } else {
-      await db.query<ResultSetHeader>('INSERT INTO users (first_name, last_name, email, password, role) VALUES (?, ?, ?, ?, ?)', [firstName, lastName, email, hashedPassword, 'student']);
+      // Check if this is the first user
+      const [userCount]: any = await db.query('SELECT COUNT(*) as count FROM users');
+      const role = userCount[0].count === 0 ? 'admin' : 'student';
+      
+      await db.query<ResultSetHeader>('INSERT INTO users (first_name, last_name, email, password, role) VALUES (?, ?, ?, ?, ?)', [firstName, lastName, email, hashedPassword, role]);
       const [inserted] = await db.query<RowDataPacket[]>('SELECT * FROM users WHERE email = ?', [email]);
       user = inserted[0];
     }
@@ -83,7 +120,27 @@ app.post('/api/login', async (req: Request, res: Response) => {
   try {
     const [rows] = await db.query<RowDataPacket[]>('SELECT * FROM users WHERE email = ?', [email]);
     const user = rows[0];
-    if (user && user.password && await bcrypt.compare(password, user.password)) {
+    
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    let isMatch = false;
+    // Try bcrypt first
+    if (user.password && user.password.startsWith('$2')) {
+      try {
+        isMatch = await bcrypt.compare(password, user.password);
+      } catch (e) {
+        // Fallback to plain text comparison handled below
+      }
+    }
+
+    // Fallback to plain text comparison
+    if (!isMatch) {
+      isMatch = (password === user.password);
+    }
+
+    if (isMatch) {
       res.json(formatUserResponse(user));
     } else {
       res.status(401).json({ error: "Invalid credentials" });
@@ -120,7 +177,6 @@ app.post('/api/update-profile', async (req: Request, res: Response) => {
     const [updated] = await db.query<RowDataPacket[]>(`SELECT * FROM users WHERE ${pkName} = ?`, [userId]);
     res.json(formatUserResponse(updated[0]));
   } catch (error: any) {
-    console.error("UPDATE PROFILE ERROR:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -180,14 +236,16 @@ app.post('/api/tickets', async (req: Request, res: Response) => {
     if (isNaN(userId)) {
       return res.status(400).json({ error: "Invalid sender_id. Must be a number." });
     }
-    // We use the auto-increment ticket_id from DB instead of generating a random number
+    
+    // Generate a unique ticket number
+    const ticketNumber = `TK-${Math.floor(100000 + Math.random() * 900000)}`;
+
     const [result] = await db.execute<ResultSetHeader>(
-      'INSERT INTO tickets (subject, description, department, user_id, status) VALUES (?, ?, ?, ?, ?)', 
-      [subject, description, department, userId, 'pending']
+      'INSERT INTO tickets (ticket_number, subject, description, department, user_id, status) VALUES (?, ?, ?, ?, ?, ?)', 
+      [ticketNumber, subject, description, department, userId, 'pending']
     );
-    res.status(201).json({ message: "Success", ticketId: result.insertId });
+    res.status(201).json({ message: "Success", ticketId: result.insertId, ticket_number: ticketNumber });
   } catch (error: any) {
-    console.error("TICKET CREATION ERROR:", error);
     res.status(500).json({ error: "Database Error", details: error.message });
   }
 });
@@ -195,21 +253,95 @@ app.post('/api/tickets', async (req: Request, res: Response) => {
 app.get('/api/tickets', async (req: Request, res: Response) => {
   const { user_id, role } = req.query;
   try {
-    // Alias ticket_id as ticket_number and id to keep frontend happy
-    let query = 'SELECT *, ticket_id AS ticket_number, ticket_id AS id FROM tickets';
+    let query = `
+      SELECT t.*, u.first_name, u.last_name, CONCAT(u.first_name, ' ', u.last_name) AS full_name 
+      FROM tickets t
+      LEFT JOIN users u ON t.user_id = u.id
+    `;
     const params = [];
     if (role === 'student' && user_id) {
-      query += ' WHERE user_id = ?';
+      query += ' WHERE t.user_id = ?';
       params.push(user_id);
     }
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY t.created_at DESC';
     const [rows] = await db.query(query, params);
     res.json(rows);
   } catch (error: any) {
-    console.error("FETCH TICKETS ERROR:", error);
     res.status(500).json({ error: "Error fetching tickets", details: error.message });
   }
 });
 
+app.get('/api/tickets/:id/responses', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await db.query(`
+      SELECT tr.*, u.first_name, u.last_name, u.role
+      FROM ticket_responses tr
+      JOIN users u ON tr.user_id = u.id
+      WHERE tr.ticket_id = ?
+      ORDER BY tr.created_at ASC
+    `, [id]);
+    res.json(rows);
+  } catch (error: any) {
+    res.status(500).json({ error: "Error fetching responses", details: error.message });
+  }
+});
+
+app.post('/api/tickets/:id/responses', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { user_id, message } = req.body;
+  if (!user_id || !message) return res.status(400).json({ error: "Missing fields" });
+  try {
+    await db.execute('INSERT INTO ticket_responses (ticket_id, user_id, message) VALUES (?, ?, ?)', [id, user_id, message]);
+    res.status(201).json({ message: "Response saved" });
+  } catch (error: any) {
+    res.status(500).json({ error: "Error saving response", details: error.message });
+  }
+});
+
+app.post('/api/reviews', async (req: Request, res: Response) => {
+  const { user_id, is_helpful, comment } = req.body;
+  try {
+    await db.execute('INSERT INTO reviews (user_id, is_helpful, comment) VALUES (?, ?, ?)', [user_id || null, is_helpful, comment || null]);
+    res.status(201).json({ message: "Review saved" });
+  } catch (error: any) {
+    res.status(500).json({ error: "Error saving review", details: error.message });
+  }
+});
+
+app.delete('/api/tickets/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    // First delete responses related to this ticket
+    await db.execute('DELETE FROM ticket_responses WHERE ticket_id = ?', [id]);
+    const [result] = await db.execute<ResultSetHeader>('DELETE FROM tickets WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Ticket not found" });
+    res.json({ message: "Ticket deleted successfully" });
+  } catch (error: any) {
+    res.status(500).json({ error: "Error deleting ticket", details: error.message });
+  }
+});
+
+app.get('/api/users', async (req: Request, res: Response) => {
+  try {
+    const [rows] = await db.query('SELECT id, first_name, last_name, email, role, department FROM users');
+    res.json(rows);
+  } catch (error: any) {
+    res.status(500).json({ error: "Error fetching users" });
+  }
+});
+
+app.patch('/api/users/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { role, department } = req.body;
+  try {
+    await db.execute('UPDATE users SET role = ?, department = ? WHERE id = ?', [role, department || null, id]);
+    res.json({ message: "User updated" });
+  } catch (error: any) {
+    res.status(500).json({ error: "Error updating user" });
+  }
+});
+
 const PORT = 3000;
-app.listen(PORT, () => console.log(`Backend on port ${PORT}`));
+app.listen(PORT, () => console.log(`server is running in port 3000`));
+

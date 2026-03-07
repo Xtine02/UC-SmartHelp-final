@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -7,17 +6,26 @@ import { useToast } from "@/hooks/use-toast";
 const AccountManagement = () => {
   const { toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+  const departments = [
+    "Registrar's Office",
+    "Accounting Office",
+    "Clinic",
+    "CCS Office",
+    "Cashier's Office",
+    "SAO",
+    "Scholarship"
+  ];
 
   const fetchUsers = async () => {
-    const { data: profiles } = await supabase.from("profiles").select("*");
-    const { data: roles } = await supabase.from("user_roles").select("*");
-    if (profiles && roles) {
-      const merged = profiles.map((p) => ({
-        ...p,
-        role: roles.find((r) => r.user_id === p.user_id)?.role || "student",
-        role_id: roles.find((r) => r.user_id === p.user_id)?.id,
-      }));
-      setUsers(merged);
+    try {
+      const response = await fetch(`${API_URL}/api/users`);
+      if (!response.ok) throw new Error("Failed to fetch users");
+      const data = await response.json();
+      setUsers(data);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
     }
   };
 
@@ -25,14 +33,19 @@ const AccountManagement = () => {
     fetchUsers();
   }, []);
 
-  const handleRoleChange = async (userId: string, newRole: string, roleId: string | undefined) => {
-    if (roleId) {
-      await supabase.from("user_roles").update({ role: newRole as any }).eq("id", roleId);
-    } else {
-      await supabase.from("user_roles").insert({ user_id: userId, role: newRole as any });
+  const handleUpdate = async (userId: number, role: string, department: string | null) => {
+    try {
+      const response = await fetch(`${API_URL}/api/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, department }),
+      });
+      if (!response.ok) throw new Error("Failed to update user");
+      toast({ title: "User updated successfully" });
+      fetchUsers();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: error.message });
     }
-    toast({ title: "Role updated" });
-    fetchUsers();
   };
 
   return (
@@ -46,6 +59,7 @@ const AccountManagement = () => {
               <TableHead>First Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Department</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -55,7 +69,7 @@ const AccountManagement = () => {
                 <TableCell>{u.first_name}</TableCell>
                 <TableCell>{u.email}</TableCell>
                 <TableCell>
-                  <Select value={u.role} onValueChange={(v) => handleRoleChange(u.user_id, v, u.role_id)}>
+                  <Select value={u.role} onValueChange={(v) => handleUpdate(u.id, v, u.department)}>
                     <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="student">Student</SelectItem>
@@ -63,6 +77,20 @@ const AccountManagement = () => {
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                </TableCell>
+                <TableCell>
+                  {u.role === "staff" ? (
+                    <Select value={u.department || ""} onValueChange={(v) => handleUpdate(u.id, u.role, v)}>
+                      <SelectTrigger className="w-48"><SelectValue placeholder="Select Dept" /></SelectTrigger>
+                      <SelectContent>
+                        {departments.map(dept => (
+                          <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-muted-foreground text-xs italic">N/A</span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

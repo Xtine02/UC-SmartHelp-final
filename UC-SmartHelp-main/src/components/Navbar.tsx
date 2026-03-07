@@ -47,12 +47,26 @@ const Navbar = () => {
   const isLoggedIn = (user && (user.userId || user.id || user.user_id)) || isGuest;
 
   const handleDashboardClick = () => {
-    if (location.pathname === "/studentdashboard") {
-      // If already on dashboard, force a reload or re-navigate to reset inner state
-      navigate("/studentdashboard", { replace: true });
-      window.location.href = "/studentdashboard"; 
+    const role = (user?.role || "student").toLowerCase();
+    const department = (user?.department || "").toLowerCase();
+    
+    let path = "/student-dashboard";
+    if (role === "admin") path = "/AdminDashboard";
+    else if (role === "staff") {
+      if (department === "accounting office" || department === "accounting") {
+        path = "/AccountingDashboard";
+      } else if (department === "scholarship") {
+        path = "/ScholarshipDashboard";
+      } else {
+        path = "/StaffDashboard";
+      }
+    }
+
+    if (location.pathname === path) {
+      navigate(path, { replace: true });
+      window.location.href = path; 
     } else {
-      navigate("/studentdashboard");
+      navigate(path);
     }
   };
 
