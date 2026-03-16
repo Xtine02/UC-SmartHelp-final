@@ -91,6 +91,7 @@ const NewTicketDialog = ({ open, onOpenChange }: Props) => {
           description: description.trim(),
           department: dbDeptName,
           sender_id: senderId,
+          status: "pending"
         }),
       });
 

@@ -44,6 +44,7 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false }: Props) => {
   const [forwardDept, setForwardDept] = useState("");
   const [showForward, setShowForward] = useState(false);
   const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
+  const [currentStatus, setCurrentStatus] = useState(ticket.status);
 
   const fetchMessages = async () => {
     try {
@@ -81,9 +82,11 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false }: Props) => {
       
       if (response.ok) {
         toast({ title: `Ticket marked as ${newStatus}` });
-        // Update local state to show change immediately
-        ticket.status = newStatus;
-        fetchMessages(); // Refresh to sync
+        setCurrentStatus(newStatus);
+        fetchMessages();
+      } else {
+        const errorData = await response.json();
+        toast({ title: "Error", description: errorData.error || "Failed to update status", variant: "destructive" });
       }
     } catch (error) {
       console.error("Error updating status:", error);
@@ -91,18 +94,40 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false }: Props) => {
   };
 
   const updateStatusToInProgress = async () => {
-    if (isStaff && ticket.status?.toLowerCase() === "pending") {
-      await handleStatusChange("in_progress");
+    if (isStaff && currentStatus?.toLowerCase() === "pending") {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+        const response = await fetch(`${API_URL}/api/tickets/${ticket.id}/open`, {
+          method: "PATCH",
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.updated) {
+            toast({ title: "Ticket Status: In-Progress", description: "This ticket has been acknowledged." });
+            setCurrentStatus("in_progress");
+          }
+        }
+      } catch (error) {
+        console.error("Error acknowledging ticket:", error);
+      }
     }
   };
 
   useEffect(() => {
     if (ticket?.id) {
+      setCurrentStatus(ticket.status);
       fetchMessages();
       fetchDepartments();
-      updateStatusToInProgress();
     }
   }, [ticket?.id]);
+
+  // Separate effect to trigger status change once currentStatus is set correctly
+  useEffect(() => {
+    if (ticket?.id) {
+      updateStatusToInProgress();
+    }
+  }, [ticket?.id, isStaff]);
 
   const handleSendReply = async () => {
     if (!reply.trim() || !user) return;
@@ -127,9 +152,17 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false }: Props) => {
         fetchMessages();
         toast({ title: "Reply sent successfully" });
 
-        // Force status to in_progress if staff replies to a pending ticket
-        if (isStaff && ticket.status?.toLowerCase() === "pending") {
-          await handleStatusChange("in_progress");
+        // Logic for auto-status transition on reply:
+        if (isStaff) {
+          // If staff replies to a pending or reopened ticket, move it to in_progress
+          if (currentStatus?.toLowerCase() === "pending" || currentStatus?.toLowerCase() === "reopened") {
+            await handleStatusChange("in_progress");
+          }
+        } else {
+          // If student replies to a resolved ticket, move it back to reopened
+          if (currentStatus?.toLowerCase() === "resolved") {
+            await handleStatusChange("reopened");
+          }
         }
       } else {
         throw new Error("Failed to send reply");
@@ -187,11 +220,11 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false }: Props) => {
 
           {/* Status Display */}
           <div className={`p-4 rounded-2xl border text-center font-black uppercase tracking-[0.2em] text-xs ${
-            ticket.status?.toLowerCase() === "pending" ? "bg-amber-50 text-amber-700 border-amber-200" :
-            ticket.status?.toLowerCase() === "in_progress" ? "bg-blue-50 text-blue-700 border-blue-200" :
+            currentStatus?.toLowerCase() === "pending" ? "bg-amber-50 text-amber-700 border-amber-200" :
+            currentStatus?.toLowerCase() === "in_progress" ? "bg-blue-50 text-blue-700 border-blue-200" :
             "bg-emerald-50 text-emerald-700 border-emerald-200"
           }`}>
-            Status: {ticket.status?.replace('_', ' ')}
+            Status: {currentStatus?.replace('_', ' ')}
           </div>
 
           {/* Content */}
@@ -224,16 +257,16 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false }: Props) => {
 
               {/* Subsequent Messages */}
               {messages.map((m) => (
-                <div key={m.id} className="bg-card border rounded-2xl p-5 shadow-sm">
+                <div key={m.id} className={`border rounded-2xl p-5 shadow-sm ${m.role === 'staff' || m.role === 'admin' ? 'bg-emerald-50/50 ml-6' : 'bg-card mr-6'}`}>
                   <div className="flex justify-between items-center mb-3">
-                    <span className="text-xs font-bold text-primary">
-                      {m.profiles?.first_name} {m.profiles?.last_name}
+                    <span className={`text-xs font-bold ${m.role === 'staff' || m.role === 'admin' ? 'text-emerald-700' : 'text-primary'}`}>
+                      {m.first_name} {m.last_name} ({m.role?.toUpperCase()})
                     </span>
                     <span className="text-[10px] text-muted-foreground font-bold">
                       {m.created_at ? format(new Date(m.created_at), "MMM d, h:mm a") : "RECENT"}
                     </span>
                   </div>
-                  <p className="text-sm text-foreground leading-relaxed">{m.content}</p>
+                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{m.message}</p>
                 </div>
               ))}
             </div>
@@ -260,10 +293,19 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false }: Props) => {
 
           {/* Action Buttons */}
           {!showReplyBox && (
-            <div className="pt-6 border-t">
-              <Button onClick={() => setShowReplyBox(true)} className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all uc-gradient-btn text-white">
-                REPLY TO TICKET
-              </Button>
+            <div className="pt-6 border-t space-y-3">
+              {currentStatus?.toLowerCase() === "resolved" && !isStaff ? (
+                <Button 
+                  onClick={() => handleStatusChange("reopened")} 
+                  className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all bg-orange-500 hover:bg-orange-600 text-white uppercase italic"
+                >
+                  REOPEN THIS TICKET
+                </Button>
+              ) : (
+                <Button onClick={() => setShowReplyBox(true)} className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all uc-gradient-btn text-white">
+                  REPLY TO TICKET
+                </Button>
+              )}
               {!isStaff && (
                 <div className="mt-4 text-center">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic">Viewing ticket as requester</p>

@@ -52,13 +52,10 @@ const Navbar = () => {
     
     if (role === "admin") return "/AdminDashboard";
     if (role === "staff") {
-      if (department === "accounting office" || department === "accounting") {
-        return "/AccountingDashboard";
-      } else if (department === "scholarship") {
+      if (department === "scholarship") {
         return "/ScholarshipDashboard";
-      } else {
-        return "/StaffDashboard";
       }
+      return "/AccountingDashboard";
     }
     if (isGuest) return "/GuestDashboard";
     return "/StudentDashboard";
@@ -75,7 +72,7 @@ const Navbar = () => {
   };
 
   // Determine if we should show a back button
-  const dashboardPaths = ["/student-dashboard", "/StudentDashboard", "/StaffDashboard", "/AdminDashboard", "/AccountingDashboard", "/ScholarshipDashboard", "/GuestDashboard", "/guest-dashboard", "/dashboard"];
+  const dashboardPaths = ["/student-dashboard", "/StudentDashboard", "/AdminDashboard", "/AccountingDashboard", "/ScholarshipDashboard", "/GuestDashboard", "/guest-dashboard", "/dashboard"];
   const isDashboard = dashboardPaths.some(path => location.pathname.toLowerCase() === path.toLowerCase());
   const isIndex = location.pathname === "/";
   const isStudent = user?.role?.toLowerCase() === "student";

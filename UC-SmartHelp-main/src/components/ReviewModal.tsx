@@ -89,7 +89,7 @@ const ReviewModal = () => {
             <button
               onClick={() => setHelpful(true)}
               className={`flex flex-col items-center gap-3 p-6 rounded-2xl border-2 transition-all ${
-                helpful === true 
+                helpful === true
                   ? "bg-green-50 border-green-500 text-green-600 scale-105" 
                   : "bg-muted/10 border-transparent text-muted-foreground hover:bg-muted/20"
               }`}

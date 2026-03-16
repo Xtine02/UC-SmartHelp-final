@@ -1,5 +1,4 @@
 import { Ticket, ClipboardList } from "lucide-react";
-import Chatbot from "@/components/chatbot/Chatbot";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
@@ -90,15 +89,6 @@ const GuestDashboard = () => {
                   <Link to="/about">Learn More</Link>
                 </Button>
               </div>
-            </div>
-
-            {/* Chatbot - The main guest feature */}
-            <div className="mt-12 bg-background rounded-2xl border-2 border-primary/20 p-1 shadow-xl">
-              <div className="bg-primary/5 p-4 rounded-t-xl border-b flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-bold uppercase tracking-wider text-primary">Live Assistant Available</span>
-              </div>
-              <Chatbot />
             </div>
           </div>
         </div>

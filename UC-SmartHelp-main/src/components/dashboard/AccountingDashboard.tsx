@@ -40,11 +40,17 @@ type SortConfig = {
   direction: "asc" | "desc";
 } | null;
 
+interface Stats {
+  pending: number;
+  in_progress: number;
+  resolved: number;
+}
+
 const AccountingDashboard = () => {
   const { toast } = useToast();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [stats, setStats] = useState({ pending: 0, in_progress: 0, resolved: 0 });
+  const [stats, setStats] = useState<Stats>({ pending: 0, in_progress: 0, resolved: 0 });
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [view, setView] = useState<"tickets" | "reviews">("tickets");
   const [loading, setLoading] = useState(true);
@@ -71,15 +77,15 @@ const AccountingDashboard = () => {
 
       const response = await fetch(url.toString());
       if (response.ok) {
-        const data = await response.json();
-        const accountingTickets = data.filter((t: any) => {
+        const data: Ticket[] = await response.json();
+        const accountingTickets = data.filter((t: Ticket) => {
           const dept = (t.department || "").toLowerCase();
           return dept === "accounting office" || dept === "accounting";
         });
         
         setTickets(accountingTickets);
         
-        const newStats = accountingTickets.reduce((acc: any, t: Ticket) => {
+        const newStats = accountingTickets.reduce((acc: Stats, t: Ticket) => {
           if (t.status === "pending" || t.status === "reopened") acc.pending++;
           else if (t.status === "in_progress") acc.in_progress++;
           else if (t.status === "resolved") acc.resolved++;
@@ -139,20 +145,25 @@ const AccountingDashboard = () => {
       });
       
       if (!response.ok) throw new Error("Failed to update status");
-      // Success: No need to re-fetch, UI is already correct
+      return true;
     } catch (error) {
       console.error("Error updating status:", error);
       setTickets(oldTickets);
       setStats(oldStats);
       toast({ title: "Error", description: "Status sync failed", variant: "destructive" });
+      return false;
     }
   };
 
-  const handleTicketClick = (ticket: Ticket) => {
-    if (ticket.status?.toLowerCase() === "pending") {
+  const handleTicketClick = async (ticket: Ticket) => {
+    if (ticket.status?.toLowerCase() === "pending" || ticket.status?.toLowerCase() === "reopened") {
       // Transition to in_progress locally immediately
-      handleStatusChange(ticket.id, "in_progress");
-      setSelectedTicket({ ...ticket, status: "in_progress" });
+      const success = await handleStatusChange(ticket.id, "in_progress");
+      if (success) {
+        setSelectedTicket({ ...ticket, status: "in_progress" });
+      } else {
+        setSelectedTicket(ticket);
+      }
     } else {
       setSelectedTicket(ticket);
     }
@@ -167,7 +178,7 @@ const AccountingDashboard = () => {
   };
 
   const sortedTickets = useMemo(() => {
-    let result = [...tickets];
+    const result = [...tickets];
     if (sortConfig) {
       result.sort((a, b) => {
         const aValue = (a[sortConfig.key] || "").toString().toLowerCase();
@@ -195,10 +206,9 @@ const AccountingDashboard = () => {
     setSelectedIds(newSet);
   };
 
-  const handleDelete = async () => {
-    if (selectedIds.size === 0) return;
-    if (!confirm(`Permanently delete ${selectedIds.size} selected ticket(s)?`)) return;
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const handleDelete = async () => {
     try {
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
       for (const id of Array.from(selectedIds)) {
@@ -206,6 +216,7 @@ const AccountingDashboard = () => {
       }
       toast({ title: "Tickets deleted" });
       setSelectedIds(new Set());
+      setShowDeleteConfirm(false);
       fetchData();
     } catch (error) {
       toast({ title: "Delete failed", variant: "destructive" });
@@ -308,7 +319,7 @@ const AccountingDashboard = () => {
                   {selectedIds.size} ticket(s) selected
                 </span>
                 <button 
-                  onClick={handleDelete}
+                  onClick={() => setShowDeleteConfirm(true)}
                   className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -316,6 +327,25 @@ const AccountingDashboard = () => {
                 </button>
               </div>
             )}
+
+            <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Tickets?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to permanently delete {selectedIds.size} selected ticket(s)? This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="flex gap-3 justify-end">
+                  <AlertDialogCancel onClick={() => setShowDeleteConfirm(false)}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+                    Yes, Delete
+                  </AlertDialogAction>
+                </div>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <div className="flex justify-between items-center px-2">
               <h2 className="text-xl font-black text-foreground uppercase tracking-tight italic">Accounting Tickets</h2>
@@ -369,12 +399,16 @@ const AccountingDashboard = () => {
                           {t.full_name || "Unknown"}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
-                          {t.status?.toLowerCase() === "pending" ? (
+                          {t.status?.toLowerCase() === "pending" || t.status?.toLowerCase() === "reopened" ? (
                             <div 
-                              className="inline-flex items-center px-3 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-widest shadow-sm select-none cursor-pointer hover:bg-amber-200 transition-colors"
+                              className={`inline-flex items-center px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest shadow-sm select-none cursor-pointer transition-colors ${
+                                t.status?.toLowerCase() === 'reopened' 
+                                ? "bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200" 
+                                : "bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200"
+                              }`}
                               onClick={() => handleStatusChange(t.id, "in_progress")}
                             >
-                              Pending
+                              {t.status?.toLowerCase() === 'reopened' ? 'Reopened' : 'Pending'}
                             </div>
                           ) : (
                             <Select 

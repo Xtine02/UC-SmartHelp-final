@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import TicketList from "@/components/tickets/TicketList";
 import ReviewAnalytics from "@/components/analytics/ReviewAnalytics";
 import AccountManagement from "@/components/admin/AccountManagement";
-import ChatbotAnalytics from "@/components/analytics/ChatbotAnalytics";
 import Navbar from "@/components/Navbar";
 import { useBackConfirm } from "@/hooks/use-back-confirm";
 import {
@@ -153,11 +152,6 @@ const AdminDashboard = () => {
                       </TableBody>
                     </Table>
                   </div>
-                </div>
-
-                {/* Chatbot Analytics Section */}
-                <div className="pt-8 border-t border-dashed">
-                  <ChatbotAnalytics />
                 </div>
               </div>
             )}

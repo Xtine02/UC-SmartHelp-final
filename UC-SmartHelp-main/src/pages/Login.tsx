@@ -27,13 +27,10 @@ const Login = () => {
 
     if (role === "admin") return "/admin-dashboard";
     if (role === "staff") {
-      if (department === "accounting office" || department === "accounting") {
-        return "/AccountingDashboard";
-      }
       if (department === "scholarship") {
         return "/ScholarshipDashboard";
       }
-      return "/staff-dashboard";
+      return "/AccountingDashboard";
     }
     return "/StudentDashboard";
   };

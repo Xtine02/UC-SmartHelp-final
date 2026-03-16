@@ -12,11 +12,11 @@ const About = () => {
       </div>
       <div className="space-y-4 text-muted-foreground leading-relaxed">
         <p>
-          UC SmartHelp is the University of Cebu's integrated helpdesk and AI-powered assistant platform,
+          UC SmartHelp is the University of Cebu's integrated helpdesk platform,
           designed to help students get quick answers and connect with the right campus services anytime.
         </p>
         <p>
-          Our system allows students to chat with an AI chatbot for instant answers to common questions,
+          Our system allows students to
           submit helpdesk tickets to specific departments, and track their ticket status in real-time.
         </p>
         <p>

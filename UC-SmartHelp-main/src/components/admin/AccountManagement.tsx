@@ -1,11 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
+interface User {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: string;
+  department: string | null;
+}
+
 const AccountManagement = () => {
   const { toast } = useToast();
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
   const departments = [
@@ -18,20 +27,21 @@ const AccountManagement = () => {
     "Scholarship"
   ];
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/users`);
       if (!response.ok) throw new Error("Failed to fetch users");
       const data = await response.json();
       setUsers(data);
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      toast({ variant: "destructive", title: "Error", description: errorMessage });
     }
-  };
+  }, [API_URL, toast]);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const handleUpdate = async (userId: number, role: string, department: string | null) => {
     try {
@@ -43,8 +53,9 @@ const AccountManagement = () => {
       if (!response.ok) throw new Error("Failed to update user");
       toast({ title: "User updated successfully" });
       fetchUsers();
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Update Failed", description: error.message });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      toast({ variant: "destructive", title: "Update Failed", description: errorMessage });
     }
   };
 

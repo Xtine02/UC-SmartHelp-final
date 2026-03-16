@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { format } from "date-fns";
 import { ArrowUpDown, ChevronUp, ChevronDown, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
 import TicketDetailModal from "./TicketDetailModal";
 import FeedbackDialog from "./FeedbackDialog";
 
@@ -47,6 +48,7 @@ interface Props {
 }
 
 const TicketList = ({ departmentFilter }: Props) => {
+  const { toast } = useToast();
   // 1. Manual Auth Logic
   let user = null;
   try {

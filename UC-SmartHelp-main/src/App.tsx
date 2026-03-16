@@ -19,7 +19,6 @@ import NotFound from "./pages/NotFound";
 
 // Component Imports
 import StudentDashboard from "@/components/dashboard/StudentDashboard";
-import StaffDashboard from "@/components/dashboard/StaffDashboard";
 import AdminDashboard from "@/components/dashboard/AdminDashboard";
 import GuestDashboard from "@/components/dashboard/GuestDashboard";
 import AccountingDashboard from "@/components/dashboard/AccountingDashboard";
@@ -44,7 +43,6 @@ const App = () => (
           <Route path="/reset-password" element={<ResetPassword />} />
           
           {/* Dashboard Routes by Role */}
-          <Route path="/StaffDashboard" element={<StaffDashboard />} />
           <Route path="/AdminDashboard" element={<AdminDashboard />} />
           <Route path="/AccountingDashboard" element={<AccountingDashboard />} />
           <Route path="/ScholarshipDashboard" element={<ScholarshipDashboard />} />

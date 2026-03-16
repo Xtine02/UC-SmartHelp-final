@@ -3,7 +3,6 @@ import { Ticket as TicketIcon, ClipboardList } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import NewTicketDialog from "@/components/tickets/NewTicketDialog";
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
-import Chatbot from "@/components/chatbot/Chatbot";
 import FeedbackDialog from "@/components/tickets/FeedbackDialog";
 import Navbar from "@/components/Navbar";
 import { useBackConfirm } from "@/hooks/use-back-confirm";
@@ -117,8 +116,6 @@ const StudentDashboard = () => {
                 <p className="text-sm text-muted-foreground text-center">View and manage your tickets</p>
               </button>
             </div>
-
-            <Chatbot />
           </div>
         </div>
       </main>

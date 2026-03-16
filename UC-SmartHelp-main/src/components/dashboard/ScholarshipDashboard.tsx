@@ -40,11 +40,17 @@ type SortConfig = {
   direction: "asc" | "desc";
 } | null;
 
+interface Stats {
+  pending: number;
+  in_progress: number;
+  resolved: number;
+}
+
 const ScholarshipDashboard = () => {
   const { toast } = useToast();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [stats, setStats] = useState({ pending: 0, in_progress: 0, resolved: 0 });
+  const [stats, setStats] = useState<Stats>({ pending: 0, in_progress: 0, resolved: 0 });
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [view, setView] = useState<"tickets" | "reviews">("tickets");
   const [loading, setLoading] = useState(true);
@@ -71,15 +77,15 @@ const ScholarshipDashboard = () => {
 
       const response = await fetch(url.toString());
       if (response.ok) {
-        const data = await response.json();
-        const scholarshipTickets = data.filter((t: any) => {
+        const data: Ticket[] = await response.json();
+        const scholarshipTickets = data.filter((t: Ticket) => {
           const dept = (t.department || "").toLowerCase();
           return dept === "scholarship office" || dept === "scholarship";
         });
         
         setTickets(scholarshipTickets);
         
-        const newStats = scholarshipTickets.reduce((acc: any, t: Ticket) => {
+        const newStats = scholarshipTickets.reduce((acc: Stats, t: Ticket) => {
           if (t.status === "pending" || t.status === "reopened") acc.pending++;
           else if (t.status === "in_progress") acc.in_progress++;
           else if (t.status === "resolved") acc.resolved++;
@@ -167,7 +173,7 @@ const ScholarshipDashboard = () => {
   };
 
   const sortedTickets = useMemo(() => {
-    let result = [...tickets];
+    const result = [...tickets];
     if (sortConfig) {
       result.sort((a, b) => {
         const aValue = (a[sortConfig.key] || "").toString().toLowerCase();
@@ -195,10 +201,9 @@ const ScholarshipDashboard = () => {
     setSelectedIds(newSet);
   };
 
-  const handleDelete = async () => {
-    if (selectedIds.size === 0) return;
-    if (!confirm(`Permanently delete ${selectedIds.size} selected ticket(s)?`)) return;
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const handleDelete = async () => {
     try {
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
       for (const id of Array.from(selectedIds)) {
@@ -206,6 +211,7 @@ const ScholarshipDashboard = () => {
       }
       toast({ title: "Tickets deleted" });
       setSelectedIds(new Set());
+      setShowDeleteConfirm(false);
       fetchData();
     } catch (error) {
       toast({ title: "Delete failed", variant: "destructive" });
@@ -308,7 +314,7 @@ const ScholarshipDashboard = () => {
                   {selectedIds.size} ticket(s) selected
                 </span>
                 <button 
-                  onClick={handleDelete}
+                  onClick={() => setShowDeleteConfirm(true)}
                   className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -316,6 +322,25 @@ const ScholarshipDashboard = () => {
                 </button>
               </div>
             )}
+
+            <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Tickets?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to permanently delete {selectedIds.size} selected ticket(s)? This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="flex gap-3 justify-end">
+                  <AlertDialogCancel onClick={() => setShowDeleteConfirm(false)}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+                    Yes, Delete
+                  </AlertDialogAction>
+                </div>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <div className="flex justify-between items-center px-2">
               <h2 className="text-xl font-black text-foreground uppercase tracking-tight italic">Scholarship Tickets</h2>
@@ -415,7 +440,7 @@ const ScholarshipDashboard = () => {
 
       {selectedTicket && (
         <TicketDetailModal
-          ticket={selectedTicket as any}
+          ticket={selectedTicket as Ticket}
           onClose={() => { setSelectedTicket(null); fetchData(); }}
           isStaff={true}
         />

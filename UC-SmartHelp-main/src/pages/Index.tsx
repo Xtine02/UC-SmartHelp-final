@@ -21,8 +21,8 @@ const Index = () => {
   const features = [
     { 
       icon: MessageSquare, 
-      title: "AI Chatbot", 
-      desc: "Get instant answers to your campus questions 24/7." 
+      title: "Departmental Support", 
+      desc: "Connect directly with specialized campus departments." 
     },
     { 
       icon: Ticket, 
