@@ -26,15 +26,12 @@ import AccountingDashboard from "@/components/dashboard/AccountingDashboard";
 import ScholarshipDashboard from "@/components/dashboard/ScholarshipDashboard";
 import { useEffect, useMemo, useState } from "react";
 import ReviewModal from "@/components/ReviewModal";
-import LeaveWithFeedbackDialog from "@/components/tickets/LeaveWithFeedbackDialog";
+import WebsiteFeedbackDialog from "@/components/tickets/WebsiteFeedbackDialog";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState(() => {
-    return localStorage.getItem("website_feedback_submitted") === "1";
-  });
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
 
   const user = useMemo(() => {
     try {
@@ -45,93 +42,8 @@ const App = () => {
     }
   }, []);
 
-  const shouldPrompt = useMemo(() => {
-    // Only prompt for students/guests (not admins/staff)
-    if (feedbackSubmitted) return false;
-    if (!user) return true;
-    return user.role === "student" || user.role === "guest";
-  }, [feedbackSubmitted, user]);
-
-  useEffect(() => {
-    if (!shouldPrompt) return;
-
-    const sessionId = localStorage.getItem("website_feedback_session") || `sess_${Date.now()}_${Math.random()}`;
-    localStorage.setItem("website_feedback_session", sessionId);
-
-    const performLogout = async () => {
-      // Log user logout when tab/browser is closed
-      try {
-        const userJson = localStorage.getItem("user");
-        if (userJson) {
-          const user = JSON.parse(userJson);
-          const userId = user?.id || user?.userId || user?.user_id;
-          if (userId) {
-            const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-            const logoutPayload = JSON.stringify({ userId });
-            const blob = new Blob([logoutPayload], { type: "application/json" });
-            navigator.sendBeacon(`${API_URL}/api/logout`, blob);
-          }
-        }
-      } catch (error) {
-        console.error("Error logging logout on tab close:", error);
-      }
-      
-      // Clear user session data when tab is closed
-      localStorage.removeItem("user");
-      localStorage.removeItem("uc_guest");
-      sessionStorage.removeItem("guest_chat_history");
-    };
-
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      // Show the leave dialog instead of default browser confirmation
-      if (!feedbackSubmitted) {
-        setShowLeaveDialog(true);
-        event.preventDefault();
-        event.returnValue = "";
-      }
-    };
-
-    const handlePageHide = async () => {
-      await performLogout();
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    window.addEventListener("pagehide", handlePageHide);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("pagehide", handlePageHide);
-    };
-  }, [feedbackSubmitted, shouldPrompt]);
-
-  const handleConfirmLeave = async () => {
-    setShowLeaveDialog(false);
-    localStorage.setItem("website_feedback_submitted", "1");
-    
-    // Perform logout
-    try {
-      const userJson = localStorage.getItem("user");
-      if (userJson) {
-        const user = JSON.parse(userJson);
-        const userId = user?.id || user?.userId || user?.user_id;
-        if (userId) {
-          const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-          const logoutPayload = JSON.stringify({ userId });
-          const blob = new Blob([logoutPayload], { type: "application/json" });
-          navigator.sendBeacon(`${API_URL}/api/logout`, blob);
-        }
-      }
-    } catch (error) {
-      console.error("Error logging logout:", error);
-    }
-    
-    localStorage.removeItem("user");
-    localStorage.removeItem("uc_guest");
-    sessionStorage.removeItem("guest_chat_history");
-  };
-
-  const handleLeaveClose = () => {
-    setShowLeaveDialog(false);
+  const handleFeedbackClose = () => {
+    setShowFeedbackDialog(false);
   };
 
   return (
@@ -175,10 +87,9 @@ const App = () => {
           </Routes>
         </BrowserRouter>
 
-        <LeaveWithFeedbackDialog
-          open={showLeaveDialog}
-          onClose={handleLeaveClose}
-          onConfirmLeave={handleConfirmLeave}
+        <WebsiteFeedbackDialog
+          open={showFeedbackDialog}
+          onClose={handleFeedbackClose}
         />
       </TooltipProvider>
     </QueryClientProvider>

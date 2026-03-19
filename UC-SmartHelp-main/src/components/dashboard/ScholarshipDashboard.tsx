@@ -412,12 +412,10 @@ const ScholarshipDashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-20 font-bold animate-pulse">Loading tickets...</TableCell></TableRow>
-                  ) : sortedTickets.length === 0 ? (
+                  {sortedTickets.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground py-24 bg-muted/5">
-                        <p className="text-xl font-black uppercase opacity-20 italic">No scholarship tickets found</p>
+                        <p className="text-xl font-black uppercase opacity-50 italic">No Tickets</p>
                       </TableCell>
                     </TableRow>
                   ) : (

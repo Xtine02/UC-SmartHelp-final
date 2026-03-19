@@ -403,16 +403,8 @@ const TicketList = ({ departmentFilter }: Props) => {
             <TableBody>
               {sortedAndFilteredTickets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-20 bg-muted/5">
-                    <div className="flex flex-col items-center gap-3 opacity-60">
-                      <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center">
-                         <span className="text-2xl font-bold">!</span>
-                      </div>
-                      <div>
-                        <p className="text-lg font-bold text-foreground">No tickets found</p>
-                        <p className="text-sm">The list is currently empty.</p>
-                      </div>
-                    </div>
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-24 bg-muted/5">
+                    <p className="text-xl font-black uppercase opacity-50 italic">No Tickets</p>
                   </TableCell>
                 </TableRow>
               ) : (
