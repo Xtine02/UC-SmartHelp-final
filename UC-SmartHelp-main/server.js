@@ -173,12 +173,53 @@ app.get('/api/chatbot-history/:userId', async (req, res) => {
   const { userId } = req.params;
   try {
     const [rows] = await db.query(
-      'SELECT * FROM chatbot_history WHERE user_id = ? AND DATE(created_at) = CURDATE() ORDER BY created_at ASC',
+      'SELECT * FROM chatbot_history WHERE user_id = ?',
       [userId]
     );
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch chat history", details: error.message });
+  }
+});
+
+// Website Feedback endpoint
+app.post('/api/website-feedback', async (req, res) => {
+  try {
+    const { user_id, is_helpful, comment } = req.body;
+
+    console.log('📮 Website Feedback Received:', { user_id, is_helpful, comment });
+
+    if (is_helpful === null || is_helpful === undefined) {
+      return res.status(400).json({ error: "is_helpful field is required" });
+    }
+
+    const [result] = await db.query(
+      'INSERT INTO website_feedback (user_id, is_helpful, comment) VALUES (?, ?, ?)',
+      [user_id || null, is_helpful, comment || null]
+    );
+
+    console.log('✅ Feedback stored with ID:', result.insertId);
+
+    res.status(201).json({
+      id: result.insertId,
+      message: "Feedback submitted successfully"
+    });
+  } catch (error) {
+    console.error('❌ Feedback error:', error.message);
+    res.status(500).json({ error: "Failed to submit feedback" });
+  }
+});
+
+// Get website feedback endpoint
+app.get('/api/website-feedback', async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT id, user_id, is_helpful, comment, date_submitted FROM website_feedback ORDER BY date_submitted DESC'
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error fetching website feedback:", error);
+    res.status(500).json({ error: "Failed to fetch website feedback", details: error.message });
   }
 });
 

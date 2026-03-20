@@ -17,31 +17,44 @@ interface DepartmentFeedback {
   profiles?: { first_name: string; last_name: string } | null;
 }
 
-interface WebsiteFeedback {
-  id: string;
-  rating: number;
-  ease_of_use: number;
-  design: number;
-  speed: number;
-  comment?: string;
-  created_at?: string;
-  user_id?: string;
-}
-
 interface ReviewAnalyticsProps {
   /**
    * When provided, limits department feedback to the given department and hides the department selector.
    */
   department?: string;
+  /**
+   * The user's department - used to restrict accounting feedback visibility
+   */
+  userDepartment?: string;
+  /**
+   * The user's role - used for access control
+   */
+  userRole?: string;
 }
 
-const ReviewAnalytics = ({ department }: ReviewAnalyticsProps) => {
+const ReviewAnalytics = ({ department, userDepartment, userRole }: ReviewAnalyticsProps) => {
   const [deptFeedback, setDeptFeedback] = useState<DepartmentFeedback[]>([]);
-  const [websiteFeedback, setWebsiteFeedback] = useState<WebsiteFeedback[]>([]);
+  const [websiteFeedback, setWebsiteFeedback] = useState<any[]>([]);
   const [allFeedback, setAllFeedback] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [selectedDept, setSelectedDept] = useState<string>("all");
-  const [feedbackType, setFeedbackType] = useState<"all" | "department" | "website">(department ? "department" : "all");
+  const [selectedDept, setSelectedDept] = useState<string>(department || "all");
+  const [exitIntentShown, setExitIntentShown] = useState<boolean>(false);
+  const [feedbackType, setFeedbackType] = useState<"all" | "department" | "website">("all");
+
+  // Keep selected department and type in sync with logged in user context
+  useEffect(() => {
+    if (!department) {
+      // For staff users, lock to their own department only
+      if (userDepartment && userRole?.toLowerCase() === "staff") {
+        setSelectedDept(userDepartment);
+        setFeedbackType("department");
+      }
+      // For admin users (no department), show all feedback by default
+      else if (userDepartment) {
+        setSelectedDept(userDepartment);
+      }
+    }
+  }, [department, userDepartment, userRole]);
 
   // Helper function to normalize department names: remove "office" and "department" from the end
   const normalizeDept = (dept?: string) => {
@@ -53,7 +66,47 @@ const ReviewAnalytics = ({ department }: ReviewAnalyticsProps) => {
       .trim();
   };
 
+  const isAccountingDept = (deptName?: string) => {
+    const normalized = normalizeDept(deptName);
+    return normalized === "accounting";
+  };
+
+  // Check if user has access to accounting department feedback
+  const canAccessAccountingFeedback = () => {
+    if (!userDepartment) return true; // No user department specified, allow access
+    return isAccountingDept(userDepartment);
+  };
+
   const normalize = (value?: string) => (value || "").toString().trim().toLowerCase();
+
+  // Helper function to safely parse date strings from database
+  const parseDate = (dateString?: string | null): Date | null => {
+    if (!dateString) return null;
+    try {
+      // Try parsing ISO format first (more reliable)
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+      return null;
+    } catch (e) {
+      console.error("Error parsing date:", dateString, e);
+      return null;
+    }
+  };
+
+  // Helper function to safely format dates
+  const formatDateSafe = (dateString?: string | null, fallback?: string | null): string => {
+    const date = parseDate(dateString || fallback);
+    if (!date) return "—";
+    try {
+      return format(date, "MMM dd, yyyy HH:mm:ss");
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return "—";
+    }
+  };
 
   const fetchData = async () => {
     const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -71,26 +124,25 @@ const ReviewAnalytics = ({ department }: ReviewAnalyticsProps) => {
       const deptResponse = await fetch(deptUrl.toString());
       const deptData: DepartmentFeedback[] = deptResponse.ok ? await deptResponse.json() : [];
       setDeptFeedback(deptData);
+
+      // Fetch website feedback
+      try {
+        const websiteResponse = await fetch(`${API_URL}/api/website-feedback`);
+        const websiteData = websiteResponse.ok ? await websiteResponse.json() : [];
+        console.log('📊 [Analytics] Website feedback fetched:', websiteData.length, 'records');
+        setWebsiteFeedback(websiteData);
+      } catch (error) {
+        console.error("❌ [Analytics] Error fetching website feedback:", error);
+        setWebsiteFeedback([]);
+      }
     } catch (error) {
       console.error("❌ [Analytics] Error fetching department feedback:", error);
     }
 
-    // Website feedback endpoint temporarily removed - will be fixed later
-    // try {
-    //   // Fetch website feedback
-    //   const websiteResponse = await fetch(`${API_URL}/api/website-feedback`);
-    //   const websiteData: WebsiteFeedback[] = websiteResponse.ok ? await websiteResponse.json() : [];
-    //   setWebsiteFeedback(websiteData);
-    // } catch (error) {
-    //   console.error("Error fetching website feedback:", error);
-    // }
-
     // Static department list to match the UI in other places
     setDepartments([
       { id: "all", name: "All Departments" },
-      { id: "Accounting", name: "Accounting" },
       { id: "Accounting Office", name: "Accounting Office" },
-      { id: "Scholarship", name: "Scholarship" },
       { id: "Scholarship Office", name: "Scholarship Office" },
       { id: "Registrar's Office", name: "Registrar's Office" },
       { id: "Clinic", name: "Clinic" },
@@ -120,30 +172,87 @@ const ReviewAnalytics = ({ department }: ReviewAnalyticsProps) => {
     let combined: any[] = [];
 
     if (feedbackType === "all" || feedbackType === "department") {
-      combined = combined.concat(deptFeedback.map(f => ({ ...f, type: "department" })));
+      let feedbackToAdd = deptFeedback;
+      
+      // When a specific department is requested, strictly filter to only that department
+      if (department) {
+        const normalizedRequestedDept = normalizeDept(department);
+        feedbackToAdd = feedbackToAdd.filter(f => {
+          const normalizedFeedbackDept = normalizeDept(f.department);
+          return normalizedFeedbackDept === normalizedRequestedDept;
+        });
+      } else {
+        // Filter accounting feedback based on user access (only in admin/multi-dept view)
+        if (!canAccessAccountingFeedback()) {
+          feedbackToAdd = feedbackToAdd.filter(f => !isAccountingDept(f.department));
+        }
+        
+        // Filter by selected department from dropdown
+        if (selectedDept !== "all") {
+          const normalizedSelectedDept = normalizeDept(selectedDept);
+          feedbackToAdd = feedbackToAdd.filter(f => {
+            const normalizedFeedbackDept = normalizeDept(f.department);
+            return normalizedFeedbackDept === normalizedSelectedDept;
+          });
+        }
+      }
+      
+      combined = combined.concat(feedbackToAdd.map(f => ({ ...f, type: "department" })));
     }
 
-    if (feedbackType === "all" || feedbackType === "website") {
+    // Always include website feedback for admins (not for staff)
+    if (userRole?.toLowerCase() !== "staff") {
+      combined = combined.concat(websiteFeedback.map(f => ({ ...f, type: "website" })));
+    } else if (feedbackType === "all" || feedbackType === "website") {
+      // For staff, only include website feedback if explicitly selected
       combined = combined.concat(websiteFeedback.map(f => ({ ...f, type: "website" })));
     }
 
     // Sort by date_submitted descending (fallback to created_at for backward compatibility)
     combined.sort((a, b) => {
-      const dateA = new Date(a.date_submitted || a.created_at || 0).getTime();
-      const dateB = new Date(b.date_submitted || b.created_at || 0).getTime();
-      return dateB - dateA;
+      const dateA = parseDate(a.date_submitted || a.created_at);
+      const dateB = parseDate(b.date_submitted || b.created_at);
+      const timeA = dateA ? dateA.getTime() : 0;
+      const timeB = dateB ? dateB.getTime() : 0;
+      return timeB - timeA;
     });
 
     setAllFeedback(combined);
-  }, [deptFeedback, websiteFeedback, feedbackType]);
+  }, [deptFeedback, websiteFeedback, feedbackType, userDepartment, department, selectedDept]);
 
   const isHelpfulRating = (isHelpful: boolean | number | undefined) => !!isHelpful;
 
   // Show ALL feedback, not just those with comments
   const feedbackToDisplay = allFeedback;
 
-  // Calculate metrics only from department feedback
-  const filtered = deptFeedback;
+  // Calculate metrics based on feedback type
+  let filtered: any[] = [];
+  
+  if (feedbackType === "all" || feedbackType === "department") {
+    // For department feedback or all feedback
+    filtered = deptFeedback;
+    
+    // If a specific department is requested, filter metrics to that department only
+    if (department) {
+      const normalizedRequestedDept = normalizeDept(department);
+      filtered = deptFeedback.filter(f => {
+        const normalizedFeedbackDept = normalizeDept(f.department);
+        return normalizedFeedbackDept === normalizedRequestedDept;
+      });
+    } else if (selectedDept !== "all") {
+      // Filter metrics by selected department from dropdown
+      const normalizedSelectedDept = normalizeDept(selectedDept);
+      filtered = deptFeedback.filter(f => {
+        const normalizedFeedbackDept = normalizeDept(f.department);
+        return normalizedFeedbackDept === normalizedSelectedDept;
+      });
+    } else {
+      // Filter accounting feedback based on user access (only in admin/multi-dept view)
+      if (!canAccessAccountingFeedback()) {
+        filtered = deptFeedback.filter(f => !isAccountingDept(f.department));
+      }
+    }
+  }
 
   const helpfulCount = filtered.filter((r) => isHelpfulRating(r.is_helpful)).length;
   const notHelpfulCount = filtered.length - helpfulCount;
@@ -152,79 +261,86 @@ const ReviewAnalytics = ({ department }: ReviewAnalyticsProps) => {
     { name: "Not Helpful", value: notHelpfulCount, color: "#a8e6c1" },
   ];
 
-  // Calculate website feedback metrics
-  const websiteAvgRating = websiteFeedback.length > 0
-    ? (websiteFeedback.reduce((sum, f) => sum + (f.rating || 0), 0) / websiteFeedback.length).toFixed(1)
-    : "0";
-  const websiteAvgEaseOfUse = websiteFeedback.length > 0
-    ? (websiteFeedback.reduce((sum, f) => sum + (f.ease_of_use || 0), 0) / websiteFeedback.length).toFixed(1)
-    : "0";
-  const websiteAvgDesign = websiteFeedback.length > 0
-    ? (websiteFeedback.reduce((sum, f) => sum + (f.design || 0), 0) / websiteFeedback.length).toFixed(1)
-    : "0";
-  const websiteAvgSpeed = websiteFeedback.length > 0
-    ? (websiteFeedback.reduce((sum, f) => sum + (f.speed || 0), 0) / websiteFeedback.length).toFixed(1)
-    : "0";
 
-  const websiteData = [
-    { name: "Overall", value: parseFloat(websiteAvgRating), color: "#3b82f6" },
-    { name: "Ease of Use", value: parseFloat(websiteAvgEaseOfUse), color: "#10b981" },
-    { name: "Design", value: parseFloat(websiteAvgDesign), color: "#f59e0b" },
-    { name: "Speed", value: parseFloat(websiteAvgSpeed), color: "#8b5cf6" },
-  ];
 
   const selectedDeptName = selectedDept === "all"
     ? "All Departments"
     : departments.find((d) => d.id === selectedDept)?.name || "";
 
+  // For department-specific views, use simplified department names
+  const getDisplayDeptName = (deptName: string) => {
+    if (deptName === "Accounting Office") return "ACCOUNTING";
+    if (deptName === "Scholarship Office") return "SCHOLARSHIP";
+    return deptName.toUpperCase();
+  };
+
+  const feedbackHeader = feedbackType === "website"
+    ? "Website feedback"
+    : selectedDept === "all"
+      ? "Department feedback"
+      : `${getDisplayDeptName(selectedDeptName)} feedback`;
+
   return (
     <div className="space-y-6 pt-4">
+      {/* Access Restriction Message */}
+      {!canAccessAccountingFeedback() && selectedDept !== "all" && isAccountingDept(selectedDept) && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
+          <p className="font-semibold">🔒 Access Restricted</p>
+          <p className="text-sm">You don't have permission to view Accounting Department feedback. Only Accounting staff can access this data.</p>
+        </div>
+      )}
+
       <div>
         <h2 className="text-xl font-bold text-foreground">Review Analytic</h2>
-        {selectedDept !== "all" && feedbackType === "department" && (
-          <p className="text-sm text-muted-foreground">Department feedback for {selectedDeptName}</p>
-        )}
+        <p className="text-sm text-muted-foreground">{feedbackHeader}</p>
         {feedbackType === "website" && (
           <p className="text-sm text-muted-foreground">Website feedback</p>
-        )}
-        {feedbackType === "all" && (
-          <p className="text-sm text-muted-foreground">All feedback (department + website)</p>
         )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
-        {/* Feedback type filter */}
-        <Select value={feedbackType} onValueChange={(v: any) => setFeedbackType(v)}>
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Select Feedback Type" />
-          </SelectTrigger>
-          <SelectContent>
-            {!department && <SelectItem value="all">All Feedback</SelectItem>}
-            <SelectItem value="department">Department Feedback</SelectItem>
-            {!department && <SelectItem value="website">Website Feedback</SelectItem>}
-          </SelectContent>
-        </Select>
+        {/* Feedback type filter - only for admins */}
+        {userRole?.toLowerCase() !== "staff" && (
+          <Select value={feedbackType} onValueChange={(v: any) => setFeedbackType(v)}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Select Feedback Type" />
+            </SelectTrigger>
+            <SelectContent>
+              {!department && <SelectItem value="all">All Feedback</SelectItem>}
+              <SelectItem value="department">Department Feedback</SelectItem>
+              <SelectItem value="website">Website Feedback</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
-        {/* Department filter (only for department feedback) */}
-        {feedbackType !== "website" && !department && (
+        {/* Department filter (only for admins, not for staff) */}
+        {!department && userRole?.toLowerCase() !== "staff" && (
           <Select value={selectedDept} onValueChange={setSelectedDept}>
             <SelectTrigger className="w-64">
               <SelectValue placeholder="Select Office to View Reviews" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Departments</SelectItem>
-              {departments.slice(1).map((d) => (
-                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-              ))}
+              {departments.slice(1).map((d) => {
+                // Hide accounting options if user is not from accounting
+                if (isAccountingDept(d.id) && !canAccessAccountingFeedback()) {
+                  return null;
+                }
+                return (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         )}
       </div>
 
-      {/* Chart - only show for department feedback */}
+      {/* Chart - show for department feedback */}
       {(feedbackType === "all" || feedbackType === "department") && (
         <div>
-          <h3 className="text-center font-semibold text-foreground mb-4">DEPARTMENT FEEDBACK (Helpful vs Not Helpful)</h3>
+          <h3 className="text-center font-semibold text-foreground mb-4">
+            {selectedDept === "all" ? "DEPARTMENT FEEDBACK" : `${selectedDeptName.toUpperCase()} FEEDBACK`} (Helpful vs Not Helpful)
+          </h3>
           <div className="text-center text-sm text-muted-foreground mb-2">
         {filtered.length === 0
           ? "No department feedback yet."
@@ -248,44 +364,62 @@ const ReviewAnalytics = ({ department }: ReviewAnalyticsProps) => {
         </div>
       )}
 
-      {/* Website feedback chart */}
-      {(feedbackType === "all" || feedbackType === "website") && (
-        <div>
-          <h3 className="text-center font-semibold text-foreground mb-4">WEBSITE FEEDBACK (Average Ratings)</h3>
-          <div className="text-center text-sm text-muted-foreground mb-2">
-            {websiteFeedback.length === 0
-              ? "No website feedback yet."
-              : `${websiteFeedback.length} feedback submission(s)`}
+      {/* Website Feedback Chart - always show for admins below department feedback */}
+      {userRole?.toLowerCase() !== "staff" && (() => {
+        const websiteHelpData = [
+          { name: "Helpful", value: websiteFeedback.filter(f => f.is_helpful).length, color: "#22c55e" },
+          { name: "Not Helpful", value: websiteFeedback.filter(f => !f.is_helpful).length, color: "#ea580c" },
+        ];
+        return (
+          <div>
+            <h3 className="text-center font-semibold text-foreground mb-4">
+              WEBSITE FEEDBACK (Helpful vs Not Helpful)
+            </h3>
+            <div className="text-center text-sm text-muted-foreground mb-2">
+              {websiteFeedback.length === 0
+                ? "No website feedback yet."
+                : `${websiteHelpData[0].value} helpful, ${websiteHelpData[1].value} not helpful (${websiteFeedback.length} total)`}
+            </div>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={websiteHelpData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis label={{ value: "Count", angle: -90, position: "insideLeft" }} />
+                  <Tooltip />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {websiteHelpData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={websiteData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis domain={[0, 5]} label={{ value: "Rating (1-5)", angle: -90, position: "insideLeft" }} />
-                <Tooltip />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {websiteData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* Feedback table - show all feedback */}
+
+
+      {/* Feedback table - show all feedback based on permissions */}
       <div>
-        <h3 className="font-semibold text-foreground mb-3">Feedback Details ({feedbackToDisplay.length})</h3>
+        <h3 className="font-semibold text-foreground mb-3">
+          {userRole?.toLowerCase() === "staff"
+            ? `${getDisplayDeptName(userDepartment || "Your")} Department Feedback Details (${feedbackToDisplay.length})`
+            : feedbackType === "website" 
+              ? `Website Feedback Details (${feedbackToDisplay.length})`
+              : selectedDept === "all" 
+                ? `Feedback Details (${feedbackToDisplay.length})`
+                : `${getDisplayDeptName(selectedDeptName)} Feedback Details (${feedbackToDisplay.length})`
+          }
+        </h3>
         <div className="rounded-xl border bg-card overflow-hidden">
           <Table>
             <TableHead>
               <TableRow className="bg-muted/50">
-                {!department && <TableHead className="font-bold">Type</TableHead>}
-                {!department && <TableHead className="font-bold">Department</TableHead>}
-                {feedbackType !== "website" && <TableHead className="font-bold">Feedback</TableHead>}
-                {feedbackType === "website" && !department && <TableHead className="font-bold">Overall Rating</TableHead>}
+                {!department && userRole?.toLowerCase() !== "staff" && <TableHead className="font-bold">Type</TableHead>}
+                {!department && userRole?.toLowerCase() !== "staff" && <TableHead className="font-bold">Department</TableHead>}
+                <TableHead className="font-bold">Feedback</TableHead>
                 <TableHead className="font-bold">Comment</TableHead>
                 <TableHead className="font-bold">Date</TableHead>
               </TableRow>
@@ -293,42 +427,33 @@ const ReviewAnalytics = ({ department }: ReviewAnalyticsProps) => {
             <TableBody>
               {feedbackToDisplay.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={department ? 3 : 6} className="text-center text-muted-foreground py-6">No feedback yet.</TableCell>
+                  <TableCell colSpan={userRole?.toLowerCase() === "staff" ? 3 : (department ? 4 : 5)} className="text-center text-muted-foreground py-6">No feedback yet.</TableCell>
                 </TableRow>
               ) : (
                 feedbackToDisplay.map((f, idx) => {
-                  const helpful = f.type === "website" ? isHelpfulRating(f.rating) : !!f.is_helpful;
+                  const helpful = f.type === "website" ? f.is_helpful : !!f.is_helpful;
                   return (
                     <TableRow key={`${f.type}-${f.id || idx}`}>
-                      {!department && (
+                      {!department && userRole?.toLowerCase() !== "staff" && (
                         <TableCell>
                           <Badge variant={f.type === "website" ? "secondary" : "default"}>
                             {f.type === "website" ? "Website" : "Department"}
                           </Badge>
                         </TableCell>
                       )}
-                      {!department && (
+                      {!department && userRole?.toLowerCase() !== "staff" && (
                         <TableCell>
                           {f.type === "website" ? "—" : f.department || "N/A"}
                         </TableCell>
                       )}
-                      {feedbackType !== "website" && (
-                        <TableCell>
-                          <Badge className={helpful ? "bg-green-200 text-green-800" : "bg-green-100 text-green-700"}>
-                            {helpful ? "Helpful" : "Not Helpful"}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {feedbackType === "website" && !department && (
-                        <TableCell>
-                          <Badge className="bg-blue-100 text-blue-700">
-                            {f.rating || 0} / 5
-                          </Badge>
-                        </TableCell>
-                      )}
+                      <TableCell>
+                        <Badge className={helpful ? "bg-green-200 text-green-800" : "bg-orange-100 text-orange-700"}>
+                          {helpful ? "Helpful" : "Not Helpful"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="max-w-md">{f.comment || "—"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {f.date_submitted ? format(new Date(f.date_submitted), "MMM dd, yyyy") : (f.created_at ? format(new Date(f.created_at), "MMM dd, yyyy") : "—")}
+                        {formatDateSafe(f.date_submitted, f.created_at)}
                       </TableCell>
                     </TableRow>
                   );

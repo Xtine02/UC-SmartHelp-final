@@ -115,11 +115,19 @@ CREATE TABLE IF NOT EXISTS department_feedback (
 CREATE TABLE IF NOT EXISTS website_feedback (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NULL,
-    session_id VARCHAR(255),
-    rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    ease_of_use INT NOT NULL CHECK (ease_of_use >= 1 AND ease_of_use <= 5),
-    design INT NOT NULL CHECK (design >= 1 AND design <= 5),
-    speed INT NOT NULL CHECK (speed >= 1 AND speed <= 5),
+    is_helpful BOOLEAN NOT NULL,
     comment TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    date_submitted TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Create announcement table
+CREATE TABLE IF NOT EXISTS announcement (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    department VARCHAR(100),
+    message TEXT NOT NULL,
+    posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

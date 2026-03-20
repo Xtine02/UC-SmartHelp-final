@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { X, Star } from "lucide-react";
+import { X, ThumbsUp, ThumbsDown } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -21,132 +21,135 @@ const WebsiteFeedbackDialog = ({ open, onClose, onSubmitted }: Props) => {
   }
 
   const { toast } = useToast();
-  const [ratings, setRatings] = useState({
-    overall: 0,
-    ease_of_use: 0,
-    design: 0,
-    speed: 0
-  });
+  const [helpful, setHelpful] = useState<boolean | null>(null);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
   if (!open) return null;
 
-  const handleRatingChange = (category: keyof typeof ratings, rating: number) => {
-    setRatings(prev => ({ ...prev, [category]: rating }));
-  };
-
   const handleSubmit = async () => {
-    if (ratings.overall === 0 || ratings.ease_of_use === 0 || ratings.design === 0 || ratings.speed === 0) {
-      toast({ title: "Please rate all categories", variant: "destructive" });
+    if (helpful === null) {
+      toast({ title: "Please select a rating", variant: "destructive" });
       return;
     }
 
     setLoading(true);
     try {
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-      const sessionId = localStorage.getItem("website_feedback_session") || `sess_${Date.now()}_${Math.random()}`;
-      localStorage.setItem("website_feedback_session", sessionId);
+      const userId = user?.userId || user?.id || null;
 
       const response = await fetch(`${API_URL}/api/website-feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: user?.id || user?.userId || null,
-          session_id: sessionId,
-          rating: ratings.overall,
-          ease_of_use: ratings.ease_of_use,
-          design: ratings.design,
-          speed: ratings.speed,
+          user_id: userId,
+          is_helpful: helpful,
           comment: comment.trim() || null
         })
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        toast({ title: "Thank you for your feedback!" });
-        onClose();
+        toast({ 
+          title: "Feedback Submitted!", 
+          description: "Your input helps us improve University of Cebu services." 
+        });
+        // Mark feedback as shown to prevent showing again until next login
+        localStorage.setItem("website_feedback_shown_session", "true");
+        setHelpful(null);
+        setComment("");
+        handleClose();
         onSubmitted?.();
       } else {
-        throw new Error("Failed to submit feedback");
+        throw new Error(data.error || data.details || "Failed to submit feedback");
       }
     } catch (error) {
       console.error("Error submitting website feedback:", error);
-      toast({ title: "Error submitting feedback", variant: "destructive" });
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      toast({ 
+        title: "Error submitting feedback", 
+        description: errorMsg,
+        variant: "destructive" 
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const StarRating = ({ category, label }: { category: keyof typeof ratings; label: string }) => (
-    <div className="space-y-2">
-      <label className="text-sm font-medium">{label}</label>
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            onClick={() => handleRatingChange(category, star)}
-            className="p-1 hover:scale-110 transition-transform"
-          >
-            <Star
-              className={`h-6 w-6 ${
-                star <= ratings[category]
-                  ? "fill-yellow-400 text-yellow-400"
-                  : "text-gray-300"
-              }`}
-            />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  const handleClose = () => {
+    // Mark feedback as shown to prevent showing again until next login
+    localStorage.setItem("website_feedback_shown_session", "true");
+    onClose();
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold">Website Feedback</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-md px-4" onClick={handleClose}>
+      <div
+        className="relative w-full max-w-md rounded-3xl bg-background border p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button 
+          onClick={handleClose} 
+          className="absolute right-6 top-6 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
+        >
+          <X className="h-5 w-5" />
+        </button>
 
-        <div className="space-y-6">
-          <p className="text-sm text-gray-600">
-            Help us improve! Please rate your experience with our website.
-          </p>
+        <div className="space-y-8">
+          <div className="space-y-2 text-center">
+            <h2 className="text-2xl font-black text-foreground uppercase italic tracking-tight">Rate Our Website</h2>
+            <p className="text-sm text-muted-foreground font-medium italic">Help us serve you better!</p>
+          </div>
 
-          <StarRating category="overall" label="Overall Experience" />
-          <StarRating category="ease_of_use" label="Ease of Use" />
-          <StarRating category="design" label="Design & Layout" />
-          <StarRating category="speed" label="Speed & Performance" />
+          {/* Rating Selection */}
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setHelpful(true)}
+              className={`flex-1 flex flex-col items-center gap-2 p-6 rounded-2xl border-2 transition-all ${
+                helpful === true 
+                  ? "bg-green-500 border-green-600 text-white shadow-lg scale-105" 
+                  : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
+              }`}
+            >
+              <ThumbsUp className={`h-8 w-8 ${helpful === true ? 'animate-bounce' : ''}`} />
+              <span className="text-xs font-black uppercase tracking-widest">Helpful</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setHelpful(false)}
+              className={`flex-1 flex flex-col items-center gap-2 p-6 rounded-2xl border-2 transition-all ${
+                helpful === false 
+                  ? "bg-red-500 border-red-600 text-white shadow-lg scale-105" 
+                  : "bg-secondary/30 border-transparent text-muted-foreground hover:bg-secondary/50"
+              }`}
+            >
+              <ThumbsDown className={`h-8 w-8 ${helpful === false ? 'animate-bounce' : ''}`} />
+              <span className="text-xs font-black uppercase tracking-widest">Poor</span>
+            </button>
+          </div>
 
+          {/* Comment Area */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Additional Comments (Optional)</label>
+            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1">
+              Your Suggestions
+            </label>
             <Textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Tell us what you think..."
-              className="min-h-[80px]"
+              placeholder="What can we improve?"
+              className="bg-muted/30 border-none focus:ring-primary min-h-[120px] rounded-2xl resize-none shadow-inner"
             />
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button
-              onClick={onClose}
-              variant="outline"
-              className="flex-1"
-              disabled={loading}
-            >
-              Skip
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              className="flex-1"
-              disabled={loading}
-            >
-              {loading ? "Submitting..." : "Submit Feedback"}
-            </Button>
-          </div>
+          <Button
+            onClick={handleSubmit}
+            disabled={helpful === null || loading}
+            className="w-full py-8 text-xl font-black rounded-2xl shadow-xl transition-all active:scale-95 uc-gradient-btn"
+          >
+            {loading ? "SUBMITTING..." : "SUBMIT FEEDBACK"}
+          </Button>
         </div>
       </div>
     </div>

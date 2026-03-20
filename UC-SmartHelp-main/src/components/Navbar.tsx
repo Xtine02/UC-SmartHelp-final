@@ -29,6 +29,7 @@ const Navbar = () => {
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [isGuest, setIsGuest] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     const syncUserFromLocalStorage = () => {
@@ -71,24 +72,17 @@ const Navbar = () => {
       console.error("Error logging logout:", error);
     }
 
-    // Dispatch logout event BEFORE clearing storage so listeners can react
-    window.dispatchEvent(new Event('user-logout'));
-    if (localStorage.getItem('uc_guest') === '1') {
-      sessionStorage.removeItem('guest_chat_history');
-    }
-
-    // Clear storage after event dispatch
+    // Clear storage
     localStorage.removeItem("uc_guest");
     localStorage.removeItem("user");
+    localStorage.removeItem("website_feedback_shown_session");
     
-    // Dispatch additional event AFTER clearing to ensure state is updated
+    // Dispatch events to reset components
+    window.dispatchEvent(new Event('user-logout'));
     window.dispatchEvent(new Event('chatbot-reset'));
     
-    setUser(null);
-    setIsGuest(false);
-    
-    // Force immediate redirect
-    navigate("/");
+    // Reload page to home - this ensures chatbot widget is completely removed
+    window.location.href = "/";
   };
 
   const role = user?.role?.toLowerCase();
@@ -211,8 +205,13 @@ const Navbar = () => {
 
                 <div className="my-1 border-t border-muted" />
                 
-                <DropdownMenuItem onClick={handleSignOut} className="rounded-lg font-bold text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
-                  <LogOut className="mr-2 h-4 w-4" /> Log out
+                <DropdownMenuItem 
+                  onClick={handleSignOut} 
+                  disabled={isLoggingOut}
+                  className="rounded-lg font-bold text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <LogOut className={`mr-2 h-4 w-4 ${isLoggingOut ? 'animate-spin' : ''}`} /> 
+                  {isLoggingOut ? 'Logging out...' : 'Log out'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

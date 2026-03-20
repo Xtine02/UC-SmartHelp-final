@@ -50,8 +50,12 @@ const DepartmentAnalytics = () => {
       <Navbar />
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Department Analytics</h1>
-          <ReviewAnalytics department={user?.department} />
+          <h1 className="text-3xl font-bold mb-3">Department Analytics</h1>
+          <ReviewAnalytics 
+            department={user?.department} 
+            userDepartment={user?.department} 
+            userRole={user?.role}
+          />
         </div>
       </div>
     </>

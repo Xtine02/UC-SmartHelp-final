@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import TicketDetailModal from "@/components/tickets/TicketDetailModal";
+
 import Navbar from "@/components/Navbar";
 import { useBackConfirm } from "@/hooks/use-back-confirm";
 import { ArrowUpDown, ChevronUp, ChevronDown, Trash2 } from "lucide-react";
@@ -278,21 +279,6 @@ const ScholarshipDashboard = () => {
       </TableHead>
     );
   };
-
-  if (view === "reviews") {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <Navbar />
-        <main className="flex-1 container mx-auto p-4 md:p-8">
-          <div className="space-y-6 p-4">
-            <div className="bg-card rounded-2xl border p-6 shadow-sm">
-              <ReviewAnalytics department={user?.department} />
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

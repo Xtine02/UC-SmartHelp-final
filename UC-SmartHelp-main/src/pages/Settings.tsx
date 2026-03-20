@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import AuditTrail from "@/components/admin/AuditTrail";
 const Settings = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -224,13 +223,6 @@ const Settings = () => {
             </Button>
           </div>
         </div>
-
-        {/* Audit Trail - Only for admin and staff */}
-        {(user?.role?.toLowerCase() === "admin" || user?.role?.toLowerCase() === "staff") && (
-          <div id="audit-trail" className="rounded-3xl border bg-card p-8 shadow-xl">
-            <AuditTrail userId={user.userId || user.id} />
-          </div>
-        )}
       </div>
 
       {/* CHANGE PASSWORD MODAL */}

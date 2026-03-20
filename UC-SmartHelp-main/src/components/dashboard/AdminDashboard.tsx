@@ -385,7 +385,7 @@ const AdminDashboard = () => {
 
           <div className="p-6">
             {view === "accounts" && <AccountManagement />}
-            {view === "feedback" && <ReviewAnalytics />}
+            {view === "feedback" && <ReviewAnalytics userDepartment={user?.department} userRole={user?.role} />}
             {view === "chatbot" && (
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="rounded-2xl border bg-background p-8 text-center max-w-md">

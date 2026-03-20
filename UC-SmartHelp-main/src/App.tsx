@@ -25,34 +25,112 @@ import AdminDashboard from "@/components/dashboard/AdminDashboard";
 import GuestDashboard from "@/components/dashboard/GuestDashboard";
 import AccountingDashboard from "@/components/dashboard/AccountingDashboard";
 import ScholarshipDashboard from "@/components/dashboard/ScholarshipDashboard";
-import { useEffect, useMemo, useState } from "react";
-import ReviewModal from "@/components/ReviewModal";
+import { useEffect, useState, useRef } from "react";
 import WebsiteFeedbackDialog from "@/components/tickets/WebsiteFeedbackDialog";
-
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [showWebsiteFeedback, setShowWebsiteFeedback] = useState(false);
+  const prevUserRef = useRef<any>(null);
+  const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const user = useMemo(() => {
+  // Read user from localStorage on mount
+  useEffect(() => {
     try {
       const saved = localStorage.getItem("user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
+      setUser(saved ? JSON.parse(saved) : null);
+    } catch (e) {
+      console.error("Failed to parse user:", e);
+      setUser(null);
     }
   }, []);
 
-  const handleFeedbackClose = () => {
-    setShowFeedbackDialog(false);
-  };
+  // Clear session flag on app load to start fresh
+  useEffect(() => {
+    console.log('🔄 App loaded - clearing session feedback flag');
+    localStorage.removeItem("website_feedback_shown_session");
+  }, []);
+
+  // Auto-show feedback 30 seconds after login
+  useEffect(() => {
+    const userId = user?.id || user?.userId || user?.user_id;
+    const prevUserId = prevUserRef.current?.id || prevUserRef.current?.userId || prevUserRef.current?.user_id;
+
+    // Detect login (user changed from null/no-id to having an id)
+    if (userId && !prevUserId) {
+      console.log('✅ User logged in. Starting 30-second countdown for website feedback');
+      
+      // Clear any existing timeout
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+
+      // Clear the session flag when user logs in (new session)
+      localStorage.removeItem("website_feedback_shown_session");
+
+      // Set new timeout for 30 seconds
+      feedbackTimeoutRef.current = setTimeout(() => {
+        console.log('⏰ 30 seconds elapsed - checking if feedback should show');
+        // Only show if feedback hasn't been shown/skipped in this session
+        if (!localStorage.getItem("website_feedback_shown_session")) {
+          console.log('📢 Showing website feedback dialog');
+          setShowWebsiteFeedback(true);
+        } else {
+          console.log('⏭️ Feedback already shown/skipped in this session');
+        }
+      }, 30000); // 30 seconds
+    }
+
+    // Detect logout (user changed from having id to no-id)
+    if (!userId && prevUserId) {
+      console.log('👋 User logged out');
+      // Clear the session flag on logout
+      localStorage.removeItem("website_feedback_shown_session");
+    }
+
+    // Update previous user ref
+    prevUserRef.current = user;
+
+    // Cleanup timeout on component unmount or logout
+    return () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    };
+  }, [user]);
+
+  // Listen for manual feedback trigger from navbar
+  useEffect(() => {
+    const handleOpenFeedback = () => setShowWebsiteFeedback(true);
+    const handleProfileUpdated = () => {
+      // User logged in - refresh user state
+      try {
+        const saved = localStorage.getItem("user");
+        setUser(saved ? JSON.parse(saved) : null);
+        console.log('👤 Profile updated event detected - user state refreshed');
+      } catch (e) {
+        console.error("Failed to parse user from storage:", e);
+      }
+    };
+    
+    window.addEventListener('open-website-feedback', handleOpenFeedback);
+    window.addEventListener('profile-updated', handleProfileUpdated);
+    return () => {
+      window.removeEventListener('open-website-feedback', handleOpenFeedback);
+      window.removeEventListener('profile-updated', handleProfileUpdated);
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <ReviewModal />
+        <WebsiteFeedbackDialog 
+          open={showWebsiteFeedback} 
+          onClose={() => setShowWebsiteFeedback(false)}
+        />
         <BrowserRouter>
           <Routes>
             {/* Main Public Routes */}
@@ -89,11 +167,6 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-
-        <WebsiteFeedbackDialog
-          open={showFeedbackDialog}
-          onClose={handleFeedbackClose}
-        />
       </TooltipProvider>
     </QueryClientProvider>
   );

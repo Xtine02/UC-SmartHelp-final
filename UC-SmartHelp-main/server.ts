@@ -214,12 +214,9 @@ const initializeDatabase = async () => {
       )
     `);
 
-    // Create/Migrate department_feedback table - Drop and recreate to ensure correct schema
+    // Create/Migrate department_feedback table
     try {
-      // Drop old table if it exists with wrong schema
-      await connection.query("DROP TABLE IF EXISTS department_feedback");
-      
-      // Create with correct schema
+      // Create table if it doesn't exist (don't drop to preserve data)
       await connection.query(`
         CREATE TABLE IF NOT EXISTS department_feedback (
           dept_feedback_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -234,20 +231,6 @@ const initializeDatabase = async () => {
       console.error("Error migrating department_feedback table:", err);
     }
 
-    // Create website_feedback table
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS website_feedback (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NULL,
-        session_id VARCHAR(255),
-        rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
-        ease_of_use INT NOT NULL CHECK (ease_of_use >= 1 AND ease_of_use <= 5),
-        design INT NOT NULL CHECK (design >= 1 AND design <= 5),
-        speed INT NOT NULL CHECK (speed >= 1 AND speed <= 5),
-        comment TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
   } catch (err: unknown) {
     console.error("Database initialization error:", err);
   } finally {
@@ -925,7 +908,7 @@ app.post('/api/department-feedback', async (req: Request, res: Response) => {
     const isHelpful = rating === 5; // 5 = true (helpful), 1 = false (poor)
     
     await db.execute(
-      'INSERT INTO department_feedback (user_id, department, is_helpful, comment) VALUES (?, ?, ?, ?)',
+      'INSERT INTO department_feedback (user_id, department, is_helpful, comment, date_submitted) VALUES (?, ?, ?, ?, NOW())',
       [user_id || null, department, isHelpful, comment || null]
     );
 
@@ -945,6 +928,9 @@ app.get('/api/department-feedback', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error fetching department feedback' });
   }
 });
+
+
+
 
 app.delete('/api/tickets/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -1179,8 +1165,8 @@ app.get('/api/chatbot-history/:userId', async (req: Request, res: Response) => {
 
   try {
     const query = all
-      ? 'SELECT * FROM chatbot_history WHERE user_id = ? ORDER BY created_at ASC'
-      : 'SELECT * FROM chatbot_history WHERE user_id = ? AND DATE(created_at) = CURDATE() ORDER BY created_at ASC';
+      ? 'SELECT * FROM chatbot_history WHERE user_id = ?'
+      : 'SELECT * FROM chatbot_history WHERE user_id = ?';
 
     const [rows] = await db.query<RowDataPacket[]>(query, [userId]);
     res.json(rows);
@@ -1245,6 +1231,95 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       error: 'Chat processing failed',
       details: error instanceof Error ? error.message : String(error)
     });
+  }
+});
+
+// Website Feedback endpoints
+app.post('/api/website-feedback', async (req: Request, res: Response) => {
+  const { user_id, is_helpful, comment } = req.body;
+
+  if (is_helpful === null || is_helpful === undefined) {
+    return res.status(400).json({ error: "is_helpful field is required" });
+  }
+
+  try {
+    const [result] = await db.query<ResultSetHeader>(
+      'INSERT INTO website_feedback (user_id, is_helpful, comment, date_submitted) VALUES (?, ?, ?, NOW())',
+      [user_id || null, is_helpful, comment || null]
+    );
+
+    res.status(201).json({
+      id: result.insertId,
+      message: "Website feedback submitted successfully"
+    });
+  } catch (error: unknown) {
+    console.error('Error saving website feedback:', error);
+    res.status(500).json({ error: 'Error saving website feedback', details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.get('/api/website-feedback', async (req: Request, res: Response) => {
+  try {
+    const [rows] = await db.query<RowDataPacket[]>(
+      `SELECT web_feedback_id as id, user_id, is_helpful, comment, 
+              DATE_FORMAT(date_submitted, "%Y-%m-%d %H:%i:%s") as date_submitted 
+       FROM website_feedback 
+       ORDER BY date_submitted DESC`
+    );
+    res.json(rows);
+  } catch (error: unknown) {
+    console.error("Error fetching website feedback:", error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("Full error details:", errorMsg);
+    res.status(500).json({ error: "Failed to fetch website feedback", details: errorMsg });
+  }
+});
+
+// Get all announcements
+app.get('/api/announcements', async (req: Request, res: Response) => {
+  try {
+    const [rows] = await db.query<RowDataPacket[]>(
+      `SELECT a.id, a.user_id, a.role, a.department, a.message, 
+              DATE_FORMAT(a.posted_at, "%Y-%m-%d %H:%i:%s") as posted_at,
+              u.first_name, u.last_name
+       FROM announcement a
+       LEFT JOIN users u ON a.user_id = u.id
+       ORDER BY a.posted_at DESC`
+    );
+    res.json(rows);
+  } catch (error: unknown) {
+    console.error("Error fetching announcements:", error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: "Failed to fetch announcements", details: errorMsg });
+  }
+});
+
+// Create announcement (staff/admin only)
+app.post('/api/announcements', async (req: Request, res: Response) => {
+  try {
+    const { user_id, role, department, message } = req.body;
+
+    if (!user_id || !role || !message) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Only allow staff and admin to create announcements
+    if (!['staff', 'admin'].includes(role.toLowerCase())) {
+      return res.status(403).json({ error: "Only staff and admin can create announcements" });
+    }
+
+    const [result] = await db.query(
+      'INSERT INTO announcement (user_id, role, department, message, posted_at) VALUES (?, ?, ?, ?, NOW())',
+      [user_id, role, department || null, message]
+    );
+
+    res.status(201).json({
+      id: (result as any).insertId,
+      message: "Announcement created successfully"
+    });
+  } catch (error: unknown) {
+    console.error('Error creating announcement:', error);
+    res.status(500).json({ error: 'Error creating announcement', details: error instanceof Error ? error.message : String(error) });
   }
 });
 

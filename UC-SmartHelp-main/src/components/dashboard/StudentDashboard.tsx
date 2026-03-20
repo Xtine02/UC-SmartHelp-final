@@ -83,7 +83,7 @@ const StudentDashboard = () => {
 
     checkAuth();
 
-    // Listen for logout events to redirect immediately
+    // Listen for logout events
     const handleLogout = () => {
       navigate("/login");
     };
