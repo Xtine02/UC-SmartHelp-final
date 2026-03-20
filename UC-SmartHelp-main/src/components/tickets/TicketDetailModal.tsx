@@ -38,8 +38,10 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
   const savedUser = localStorage.getItem("user");
   const user = savedUser ? JSON.parse(savedUser) : null;
   const userId = user?.id || user?.userId || user?.user_id;
-  const isAdminOrStaff = (user?.role || "").toString().trim().toLowerCase() === "staff" ||
-    (user?.role || "").toString().trim().toLowerCase() === "admin";
+  const userRole = (user?.role || "").toString().trim().toLowerCase();
+  const isAdmin = userRole === "admin";
+  const isStaffUser = userRole === "staff";
+  const isAdminOrStaff = isAdmin || isStaffUser;
   
   const { toast } = useToast();
   const [messages, setMessages] = useState<any[]>([]);
@@ -437,8 +439,8 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
             </div>
           ) : (
             <div className="space-y-3">
-              {isAdminOrStaff ? (
-                // Admin/Staff view - show FORWARD button only
+              {isAdmin ? (
+                // Admin view - show FORWARD button
                 <Button 
                   onClick={() => setShowForward(true)} 
                   className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all bg-purple-500 hover:bg-purple-600 text-white uppercase italic"
@@ -447,7 +449,7 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
                   FORWARD TICKET
                 </Button>
               ) : (
-                // Student view - show REPLY button
+                // Staff/Student view - show REPLY behavior
                 <>
                   {currentStatus?.toLowerCase() === "resolved" ? (
                     <Button 
