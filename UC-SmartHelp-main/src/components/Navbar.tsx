@@ -195,7 +195,7 @@ const Navbar = () => {
                     <DropdownMenuItem onClick={() => navigate("/settings")} className="rounded-lg font-medium cursor-pointer">
                       Account Settings
                     </DropdownMenuItem>
-                    {(isAdmin || isStaff) && (
+                    {isAdmin && (
                       <DropdownMenuItem onClick={handleAuditTrailClick} className="rounded-lg font-medium cursor-pointer">
                         Audit Trail
                       </DropdownMenuItem>

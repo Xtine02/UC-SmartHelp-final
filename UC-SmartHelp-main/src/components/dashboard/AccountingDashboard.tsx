@@ -40,9 +40,11 @@ interface Ticket {
   user_id: string;
   description: string;
   acknowledge_at?: string | null;
+  staff_acknowledge_at?: string | null;
   first_name?: string;
   last_name?: string;
   full_name?: string;
+  has_unread_reply?: boolean;
 }
 
 type SortConfig = {
@@ -171,16 +173,30 @@ const AccountingDashboard = () => {
         const data = await response.json();
         if (data.updated && data.ticket) {
           const normalizedStatus = (data.ticket.status as string)?.toLowerCase().trim().replace(/[\s-]+/g, '_');
-          setSelectedTicket({ ...ticket, ...data.ticket, status: normalizedStatus });
+          const updatedTicket = { ...ticket, ...data.ticket, status: normalizedStatus, has_unread_reply: false };
+          setSelectedTicket(updatedTicket);
+          // Clear highlighting by removing unread status
+          setTickets((prev) => prev.map((t) =>
+            t.id === ticket.id ? { ...t, has_unread_reply: false } : t
+          ));
           return;
         }
-        setSelectedTicket(ticket);
+        setSelectedTicket({ ...ticket, has_unread_reply: false });
+        setTickets((prev) => prev.map((t) =>
+          t.id === ticket.id ? { ...t, has_unread_reply: false } : t
+        ));
       } else {
-        setSelectedTicket(ticket);
+        setSelectedTicket({ ...ticket, has_unread_reply: false });
+        setTickets((prev) => prev.map((t) =>
+          t.id === ticket.id ? { ...t, has_unread_reply: false } : t
+        ));
       }
     } catch (error) {
       console.error("Error opening ticket:", error);
-      setSelectedTicket(ticket);
+      setSelectedTicket({ ...ticket, has_unread_reply: false });
+      setTickets((prev) => prev.map((t) =>
+        t.id === ticket.id ? { ...t, has_unread_reply: false } : t
+      ));
     }
   };
 
@@ -386,8 +402,17 @@ const AccountingDashboard = () => {
 
             <div className="flex justify-between items-center px-2">
               <h2 className="text-xl font-black text-foreground uppercase tracking-tight italic">Accounting Tickets</h2>
-              <span className="text-xs font-bold text-muted-foreground bg-muted px-3 py-1 rounded-full">
-                {tickets.length} TOTAL
+              <span className="text-xs font-bold text-muted-foreground bg-muted px-3 py-1 rounded-full flex items-center gap-3">
+                {tickets.length} total
+                {(() => {
+                  const newCount = tickets.filter(t => t.has_unread_reply).length;
+                  return newCount > 0 ? (
+                    <span className="text-amber-600 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-amber-600 rounded-full animate-pulse"></span>
+                      {newCount} new
+                    </span>
+                  ) : null;
+                })()}
               </span>
             </div>
             
@@ -419,7 +444,11 @@ const AccountingDashboard = () => {
                     sortedTickets.map((t) => (
                       <TableRow 
                         key={t.id} 
-                        className={`cursor-pointer transition-colors border-b ${selectedIds.has(t.id) ? 'bg-destructive/5' : 'hover:bg-emerald-50/50'} ${!t.acknowledge_at ? 'bg-slate-100/60 text-slate-600' : ''}`}
+                        className={`cursor-pointer transition-all ${selectedIds.has(t.id) ? 'bg-destructive/5 border-l-4 border-destructive' : ''} ${
+                          t.has_unread_reply
+                            ? 'bg-amber-50/80 hover:bg-amber-50 border-l-4 border-amber-400 font-semibold text-amber-900' 
+                            : 'hover:bg-emerald-50/50 border-l-4 border-transparent'
+                        }`}
                         onClick={() => handleTicketClick(t)}
                       >
                         <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>

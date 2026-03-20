@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 
 interface User {
   id?: number;
@@ -31,6 +33,7 @@ interface Announcement {
 }
 
 const Announcements = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -125,9 +128,19 @@ const Announcements = () => {
       <Navbar />
       
       <div className="container py-12 space-y-8">
-        <div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Announcements</h1>
-          <p className="text-muted-foreground">Stay updated with latest news from University of Cebu</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-foreground mb-2">Announcements</h1>
+            <p className="text-muted-foreground">Stay updated with latest news from University of Cebu</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-6 w-6" />
+          </Button>
         </div>
 
         {/* Create Announcement Form - Only for Staff/Admin */}

@@ -160,11 +160,8 @@ const ReviewAnalytics = ({ department, userDepartment, userRole }: ReviewAnalyti
 
   useEffect(() => {
     fetchData();
-    // Auto-refresh analytics every 2 seconds
-    const interval = setInterval(() => {
-      fetchData();
-    }, 2000);
-    return () => clearInterval(interval);
+    // Removed auto-refresh - was causing resource exhaustion
+    // Data updates on filter/dropdown changes instead
   }, [department]);
 
   // Combine feedback based on filter and feedback type

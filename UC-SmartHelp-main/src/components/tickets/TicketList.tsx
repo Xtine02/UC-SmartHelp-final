@@ -83,6 +83,15 @@ const normalizeStatus = (status: any) =>
     .replace(/[\s\-]+/g, '_')
     || 'pending';
 
+// Helper to check if ticket is new (unacknowledged) or has unread replies
+const isTicketNew = (ticket: Ticket, isStaffRole: boolean) => {
+  return ticket.has_unread_reply || (
+    isStaffRole 
+      ? !ticket.staff_acknowledge_at 
+      : !ticket.acknowledge_at
+  );
+};
+
 const TicketList = ({ departmentFilter }: Props) => {
   const { toast } = useToast();
   // 1. Manual Auth Logic
@@ -206,15 +215,10 @@ const TicketList = ({ departmentFilter }: Props) => {
   useEffect(() => {
     fetchTickets();
 
-    const poll = setInterval(() => {
-      fetchTickets();
-    }, 3000);
-
     const handleTicketUpdated = () => fetchTickets();
     window.addEventListener('ticket-updated', handleTicketUpdated);
 
     return () => {
-      clearInterval(poll);
       window.removeEventListener('ticket-updated', handleTicketUpdated);
     };
   }, [departmentFilter]);
@@ -435,13 +439,29 @@ const TicketList = ({ departmentFilter }: Props) => {
 
         {/* Tickets Table */}
         <div className="flex-1 rounded-2xl border bg-card shadow-lg overflow-hidden">
-          <div className="p-4 border-b bg-muted/50">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tickets..."
-              className="w-1/3 rounded-xl border border-muted/50 bg-background px-4 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
+          <div className="p-4 border-b bg-muted/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tickets..."
+                className="w-1/3 rounded-xl border border-muted/50 bg-background px-4 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <div className="flex items-center gap-4 text-sm font-bold">
+                <span className="text-muted-foreground">
+                  {sortedAndFilteredTickets.length} total
+                </span>
+                {(() => {
+                  const newCount = sortedAndFilteredTickets.filter(t => isTicketNew(t, isStaffOrAdmin)).length;
+                  return newCount > 0 ? (
+                    <span className="text-amber-600 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-amber-600 rounded-full animate-pulse"></span>
+                      {newCount} new
+                    </span>
+                  ) : null;
+                })()}
+              </div>
+            </div>
           </div>
           <Table>
             <TableHeader className="bg-muted/50">
@@ -474,7 +494,11 @@ const TicketList = ({ departmentFilter }: Props) => {
                 sortedAndFilteredTickets.map((t) => (
                   <TableRow 
                     key={t.id} 
-                    className={`cursor-pointer transition-colors ${selectedIds.has(t.id) ? 'bg-destructive/5' : (!t.has_unread_reply ? 'hover:bg-slate-200' : 'hover:bg-secondary/20')} ${t.has_unread_reply ? 'bg-slate-100/60 text-slate-600 font-bold' : ''}`} 
+                    className={`cursor-pointer transition-all ${selectedIds.has(t.id) ? 'bg-destructive/10 border-l-4 border-destructive' : ''} ${
+                      isTicketNew(t, isStaffOrAdmin)
+                        ? 'bg-amber-50/80 hover:bg-amber-50 border-l-4 border-amber-400 font-semibold text-amber-900' 
+                        : 'hover:bg-muted/50 border-l-4 border-transparent'
+                    }`} 
                     onClick={() => handleTicketClick(t)}
                   >
                     <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
@@ -484,7 +508,9 @@ const TicketList = ({ departmentFilter }: Props) => {
                       />
                     </TableCell>
                     <TableCell className="font-mono font-bold text-primary">{t.ticket_number}</TableCell>
-                    <TableCell className="font-bold text-foreground">{t.subject}</TableCell>
+                    <TableCell className="font-bold text-foreground">
+                      {t.subject}
+                    </TableCell>
                     <TableCell className="text-sm">{t.departments?.name || "N/A"}</TableCell>
                     <TableCell className="text-sm max-w-[200px] truncate">{t.description || "---"}</TableCell>
                     <TableCell>

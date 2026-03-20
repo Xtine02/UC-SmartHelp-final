@@ -177,14 +177,8 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
       fetchMessages();
       fetchDepartments();
     }
-
-    const poll = setInterval(() => {
-      if (ticket?.id) {
-        fetchMessages();
-      }
-    }, 5000);
-
-    return () => clearInterval(poll);
+    // Removed polling - was causing resource exhaustion
+    // Messages update through Supabase real-time subscriptions
   }, [ticket?.id]);
 
   // Separate effect to trigger status change once currentStatus is set correctly

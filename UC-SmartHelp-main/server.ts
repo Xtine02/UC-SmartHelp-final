@@ -56,13 +56,12 @@ const logAudit = async (
   userId: number | string,
   action: string,
   entityType?: string,
-  entityId?: string,
-  details?: string
+  entityId?: string
 ) => {
   try {
     await db.execute(
-      'INSERT INTO audit_trail (user_id, action, entity_type, entity_id, details, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
-      [userId, action, entityType || null, entityId || null, details || null]
+      'INSERT INTO audit_trail (user_id, action, entity_type, entity_id, created_at) VALUES (?, ?, ?, ?, NOW())',
+      [userId, action, entityType || null, entityId || null]
     );
   } catch (error: unknown) {
     console.error('Error logging audit trail:', error);
@@ -313,7 +312,7 @@ try {
   if (isMatch) {
     // Log successful login - handle both 'id' and 'user_id' column names
     const userId = user.id ?? user.user_id;
-    await logAudit(req, userId, 'User logged in', 'user', userId.toString(), `Login from ${user.role} account`);
+    await logAudit(req, userId, 'User logged in', 'user', userId.toString());
 
     res.json(formatUserResponse(user as User));
   } else {
@@ -329,7 +328,7 @@ app.post('/api/logout', async (req: Request, res: Response) => {
   const { userId } = req.body;
 
   if (userId) {
-    await logAudit(req, userId, 'User logged out', 'user', userId.toString(), 'User session ended');
+    await logAudit(req, userId, 'User logged out', 'user', userId.toString());
   }
 
   res.json({ message: 'Logged out successfully' });
@@ -366,7 +365,7 @@ try {
   const [updated] = await db.query<RowDataPacket[]>(`SELECT * FROM users WHERE ${pkName} = ?`, [userId]);
 
   // Log audit trail for profile update
-  await logAudit(req, userId, 'Updated profile information', 'user', userId.toString(), 'Updated first name and last name');
+  await logAudit(req, userId, 'Updated profile information', 'user', userId.toString());
 
   res.json(formatUserResponse(updated[0] as User));
 } catch (error: unknown) {
@@ -403,7 +402,7 @@ try {
   await db.query(`UPDATE users SET password = ? WHERE ${pkName} = ?`, [hashedNewPassword, userId]);
 
   // Log audit trail for password change
-  await logAudit(req, userId, 'Changed password', 'user', userId.toString(), 'Password updated successfully');
+  await logAudit(req, userId, 'Changed password', 'user', userId.toString());
 
   res.json({ message: "Password updated successfully" });
 } catch (error: unknown) {
@@ -445,7 +444,7 @@ try {
   const params = [subject, description, department, userId, 'pending'];
 
   const [result] = await db.execute<ResultSetHeader>(query, params);
-  await logAudit(req, userId, 'Created ticket', 'ticket', result.insertId.toString(), `Subject: ${subject}`);
+  await logAudit(req, userId, 'Created ticket', 'ticket', result.insertId.toString());
   res.status(201).json({ message: "Success", ticketId: result.insertId });
 } catch (error: unknown) {
   res.status(500).json({ error: "Database Error", details: error instanceof Error ? error.message : String(error) });
@@ -480,6 +479,7 @@ try {
 
   // Add unread reply indicators for both directions (staff->student and student->staff)
   let selectClause = `t.*, t.${ticketPk} as id,
+    COALESCE((SELECT message FROM ticket_response WHERE ticket_id = t.${ticketPk} ORDER BY created_at DESC LIMIT 1), t.description) AS description,
     (SELECT COUNT(*) FROM ticket_response tr WHERE tr.ticket_id = t.${ticketPk}
       AND LOWER(tr.role) = 'staff'
       AND tr.created_at > IFNULL(t.acknowledge_at, t.created_at)
@@ -689,7 +689,7 @@ app.post('/api/tickets/:id/responses', async (req: Request, res: Response) => {
     }
 
     // Log audit trail for ticket response
-    await logAudit(req, user_id, 'Added ticket response', 'ticket', id.toString(), `Role: ${role}`);
+    await logAudit(req, user_id, 'Added ticket response', 'ticket', id.toString());
 
     res.status(201).json({ message: "Response saved" });
   } catch (error: unknown) {
@@ -746,7 +746,12 @@ app.patch('/api/tickets/:id/status', async (req: Request, res: Response) => {
     await db.execute(`UPDATE tickets SET status = ? WHERE ${pkName} = ?`, [dbStatus, id]);
 
     // Return the updated ticket so frontend can sync state exactly
-    const [rows] = await db.query<RowDataPacket[]>(`SELECT * FROM tickets WHERE ${pkName} = ?`, [id]);
+    const [rows] = await db.query<RowDataPacket[]>(`
+      SELECT t.*, 
+        COALESCE((SELECT message FROM ticket_response WHERE ticket_id = t.${pkName} ORDER BY created_at DESC LIMIT 1), t.description) AS description
+      FROM tickets t 
+      WHERE ${pkName} = ?
+    `, [id]);
     const ticket = rows[0];
     if (ticket) {
       ticket.status = normalizeStatus(ticket.status);
@@ -754,7 +759,7 @@ app.patch('/api/tickets/:id/status', async (req: Request, res: Response) => {
 
     // Log audit trail if a user_id was provided
     if (user_id) {
-      await logAudit(req, user_id, `Updated ticket status to ${dbStatus}`, 'ticket', id.toString(), `Status updated to ${dbStatus}`);
+      await logAudit(req, user_id, `Updated ticket status to ${dbStatus}`, 'ticket', id.toString());
     }
 
     res.json({ message: "Status updated successfully", ticket });
@@ -776,11 +781,16 @@ app.patch('/api/tickets/:id/open', async (req: Request, res: Response) => {
     const [result] = await db.execute<ResultSetHeader>(query, [id]);
 
     // Fetch the latest state
-    const [rows] = await db.query<RowDataPacket[]>(`SELECT * FROM tickets WHERE ${pkName} = ?`, [id]);
+    const [rows] = await db.query<RowDataPacket[]>(`
+      SELECT t.*, 
+        COALESCE((SELECT message FROM ticket_response WHERE ticket_id = t.${pkName} ORDER BY created_at DESC LIMIT 1), t.description) AS description
+      FROM tickets t 
+      WHERE ${pkName} = ?
+    `, [id]);
     
     // Log audit trail if a user_id was provided
     if (user_id) {
-      await logAudit(req, user_id, 'Opened ticket', 'ticket', id.toString(), 'Marked ticket as In-Progress');
+      await logAudit(req, user_id, 'Opened ticket', 'ticket', id.toString());
     }
 
     res.json({ 
@@ -811,10 +821,15 @@ app.patch('/api/tickets/:id/acknowledge', async (req: Request, res: Response) =>
     const [result] = await db.execute<ResultSetHeader>(query, [id]);
 
     if (user_id) {
-      await logAudit(req, user_id, `Acknowledged ticket as ${role}`, 'ticket', id.toString(), `${role} read ticket and set ${column}`);
+      await logAudit(req, user_id, `Acknowledged ticket as ${role}`, 'ticket', id.toString());
     }
 
-    const [rows] = await db.query<RowDataPacket[]>(`SELECT * FROM tickets WHERE ${pkName} = ?`, [id]);
+    const [rows] = await db.query<RowDataPacket[]>(`
+      SELECT t.*, 
+        COALESCE((SELECT message FROM ticket_response WHERE ticket_id = t.${pkName} ORDER BY created_at DESC LIMIT 1), t.description) AS description
+      FROM tickets t 
+      WHERE ${pkName} = ?
+    `, [id]);
 
     res.json({ success: true, updated: result.affectedRows > 0, ticket: rows[0] });
   } catch (error: unknown) {
@@ -882,7 +897,12 @@ app.patch('/api/tickets/:id/forward', async (req: Request, res: Response) => {
     }
 
     // Fetch the updated ticket
-    const [rows] = await db.query<RowDataPacket[]>(`SELECT * FROM tickets WHERE ${pkName} = ?`, [id]);
+    const [rows] = await db.query<RowDataPacket[]>(`
+      SELECT t.*, 
+        COALESCE((SELECT message FROM ticket_response WHERE ticket_id = t.${pkName} ORDER BY created_at DESC LIMIT 1), t.description) AS description
+      FROM tickets t 
+      WHERE ${pkName} = ?
+    `, [id]);
     
     res.json({ 
       success: true, 
@@ -964,7 +984,7 @@ app.delete('/api/tickets/:id', async (req: Request, res: Response) => {
 
     console.log(`Ticket ${id} deleted successfully.`);
     if (user_id) {
-      await logAudit(req, user_id, 'Deleted ticket', 'ticket', id.toString(), 'Ticket removed from system');
+      await logAudit(req, user_id, 'Deleted ticket', 'ticket', id.toString());
     }
     res.json({ message: "Ticket deleted successfully" });
   } catch (error: unknown) {
@@ -1060,11 +1080,22 @@ app.post('/api/users', async (req: Request, res: Response) => {
     if (existing.length > 0) {
       return res.status(400).json({ error: "User with this email already exists" });
     }
-    await db.query<ResultSetHeader>('INSERT INTO users (first_name, last_name, email, password, role, department) VALUES (?, ?, ?, ?, ?, ?)', 
+    const [result] = await db.query<ResultSetHeader>('INSERT INTO users (first_name, last_name, email, password, role, department) VALUES (?, ?, ?, ?, ?, ?)', 
       [first_name, last_name, email, hashedPassword, role, department || null]);
-    const [inserted] = await db.query<RowDataPacket[]>('SELECT id, first_name, last_name, email, role, department FROM users WHERE email = ?', [email]);
+    
+    console.log('User created with ID:', result.insertId);
+    
+    const [inserted] = await db.query<RowDataPacket[]>('SELECT id, first_name, last_name, email, role, department FROM users WHERE id = ?', [result.insertId]);
+    
+    if (!inserted[0]) {
+      console.error('Failed to retrieve created user:', result.insertId);
+      return res.status(500).json({ error: "User created but could not be retrieved", details: "Database query returned no results" });
+    }
+    
+    console.log('Returning user data:', inserted[0]);
     res.status(201).json(inserted[0]);
   } catch (error: unknown) {
+    console.error('Error creating user:', error);
     res.status(500).json({ error: "Error creating user", details: error instanceof Error ? error.message : String(error) });
   }
 });
@@ -1080,9 +1111,29 @@ try {
 }
 });
 
+app.delete('/api/users/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    console.log('Deleting user with ID:', id);
+    const [result] = await db.query<ResultSetHeader>(
+      'DELETE FROM users WHERE id = ?',
+      [id]
+    );
+    if (result.affectedRows === 0) {
+      console.log('User not found:', id);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    console.log('User deleted successfully:', id);
+    res.json({ message: 'User deleted successfully' });
+  } catch (error: unknown) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Error deleting user', details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 // Audit trail endpoints
 app.post('/api/audit-trail', async (req: Request, res: Response) => {
-  const { user_id, action, entity_type, entity_id, details } = req.body;
+  const { user_id, action, entity_type, entity_id } = req.body;
 
   if (!user_id || !action) {
     return res.status(400).json({ error: "user_id and action are required" });
@@ -1105,7 +1156,7 @@ app.get('/api/audit-trail', async (req: Request, res: Response) => {
   const { limit = '50' } = req.query;
   try {
     const [rows] = await db.query<RowDataPacket[]>(
-      'SELECT id, user_id, action, entity_type, entity_id, details, ip_address, created_at FROM audit_trail ORDER BY created_at DESC LIMIT ?',
+      'SELECT audit_id as id, user_id, action, entity_type, entity_id, created_at FROM audit_trail ORDER BY created_at DESC LIMIT ?',
       [parseInt(limit as string)]
     );
     res.json(rows);
@@ -1121,13 +1172,30 @@ app.get('/api/audit-trail/:userId', async (req: Request, res: Response) => {
 
   try {
     const [rows] = await db.query<RowDataPacket[]>(
-      'SELECT id, user_id, action, entity_type, entity_id, details, ip_address, created_at FROM audit_trail WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
+      'SELECT audit_id as id, user_id, action, entity_type, entity_id, created_at FROM audit_trail WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
       [userId, parseInt(limit as string)]
     );
     res.json(rows);
   } catch (error: unknown) {
     console.error('Error fetching audit trail:', error);
     res.status(500).json({ error: 'Error fetching audit trail' });
+  }
+});
+
+app.delete('/api/audit-trail/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query<ResultSetHeader>(
+      'DELETE FROM audit_trail WHERE audit_id = ?',
+      [id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Audit entry not found' });
+    }
+    res.json({ message: 'Audit entry deleted successfully' });
+  } catch (error: unknown) {
+    console.error('Error deleting audit entry:', error);
+    res.status(500).json({ error: 'Error deleting audit entry' });
   }
 });
 
@@ -1146,7 +1214,7 @@ app.post('/api/chatbot-history', async (req: Request, res: Response) => {
     );
 
     const insertedId = (result as ResultSetHeader).insertId;
-    await logAudit(req, user_id, `Chatbot ${sender_type}`, 'chatbot', insertedId.toString(), `Message: ${message.slice(0, 150)}`);
+    await logAudit(req, user_id, `Chatbot ${sender_type}`, 'chatbot', insertedId.toString());
 
     res.status(201).json({ message: 'Chat history saved', id: insertedId });
   } catch (error: unknown) {

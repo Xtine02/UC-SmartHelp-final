@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import TicketList from "@/components/tickets/TicketList";
 import ReviewAnalytics from "@/components/analytics/ReviewAnalytics";
 import AccountManagement from "@/components/admin/AccountManagement";
+import AuditTrail from "@/components/admin/AuditTrail";
 import Navbar from "@/components/Navbar";
 import { useBackConfirm } from "@/hooks/use-back-confirm";
 import {
@@ -15,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { ChevronDown } from "lucide-react";
 
 interface Ticket {
@@ -77,7 +78,7 @@ const AdminDashboard = () => {
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"department" | "chatbot" | "tickets" | "accounts" | "feedback">("department");
+  const [view, setView] = useState<"department" | "chatbot" | "tickets" | "accounts" | "audit" | "feedback">("department");
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [showDeptDialog, setShowDeptDialog] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -89,6 +90,7 @@ const AdminDashboard = () => {
     { key: "department", label: "Department Analytics" },
     { key: "chatbot", label: "Chatbot Analytic" },
     { key: "accounts", label: "User Management" },
+    { key: "audit", label: "Audit Trail" },
     { key: "feedback", label: "Feedback Analytic" },
   ] as const;
 
@@ -97,7 +99,9 @@ const AdminDashboard = () => {
       setLoading(true);
       try {
         const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-        const userId = user?.id || user?.userId || user?.user_id;
+        const userJson = localStorage.getItem("user");
+        const userData = userJson ? JSON.parse(userJson) : null;
+        const userId = userData?.id || userData?.userId || userData?.user_id;
         const url = new URL(`${API_URL}/api/tickets`);
         if (userId) url.searchParams.append("user_id", userId.toString());
         // Admin can see all departments (server-side allows this)
@@ -125,7 +129,7 @@ const AdminDashboard = () => {
     };
 
     fetchTickets();
-  }, [user]);
+  }, []);
 
   const deptStats = useMemo(() => {
     const map = new Map<string, DeptStat>();
@@ -284,9 +288,9 @@ const AdminDashboard = () => {
                 </div>
               ) : (
                 <>
-                  {/* Pie chart (centered) */}
-                  <div className="mx-auto w-full max-w-3xl rounded-2xl border bg-background p-6">
-                    <div className="flex flex-col items-center gap-4">
+                  {/* Pie chart with Legend */}
+                  <div className="mx-auto w-full max-w-5xl rounded-2xl border bg-background p-6">
+                    <div className="flex flex-col gap-4">
                       <div className="flex w-full items-center justify-between">
                         <h2 className="text-lg font-bold">Tickets by Department</h2>
                         <span className="text-sm text-muted-foreground">Total: {selectedDeptCount}</span>
@@ -294,17 +298,20 @@ const AdminDashboard = () => {
                       {pieData.length === 0 ? (
                         <div className="flex h-56 items-center justify-center text-muted-foreground">No tickets yet.</div>
                       ) : (
-                        <div className="h-72 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={56} outerRadius={88} paddingAngle={2}>
-                                {pieData.map((entry, index) => (
-                                  <Cell key={entry.name} fill={COLOR_PALETTE[index % COLOR_PALETTE.length]} />
-                                ))}
-                              </Pie>
-                              <Tooltip formatter={(value: number) => [value, "Tickets"]} />
-                            </PieChart>
-                          </ResponsiveContainer>
+                        <div className="flex gap-8">
+                          <div className="flex-1 h-96">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={56} outerRadius={88} paddingAngle={2}>
+                                  {pieData.map((entry, index) => (
+                                    <Cell key={entry.name} fill={COLOR_PALETTE[index % COLOR_PALETTE.length]} />
+                                  ))}
+                                </Pie>
+                                <Tooltip formatter={(value: number) => [value, "Tickets"]} />
+                                <Legend verticalAlign="middle" layout="vertical" align="right" wrapperStyle={{ paddingLeft: "20px" }} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -385,6 +392,7 @@ const AdminDashboard = () => {
 
           <div className="p-6">
             {view === "accounts" && <AccountManagement />}
+            {view === "audit" && <AuditTrail all={true} />}
             {view === "feedback" && <ReviewAnalytics userDepartment={user?.department} userRole={user?.role} />}
             {view === "chatbot" && (
               <div className="flex flex-col items-center justify-center py-12">

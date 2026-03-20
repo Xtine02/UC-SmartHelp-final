@@ -11,8 +11,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Trash2 } from "lucide-react";
 
 interface User {
   id: number;
@@ -31,6 +40,7 @@ const AccountManagement = () => {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [newUser, setNewUser] = useState({
     first_name: "",
     last_name: "",
@@ -80,11 +90,8 @@ const AccountManagement = () => {
 
   useEffect(() => {
     fetchUsers();
-    // Auto-refresh every 2 seconds
-    const interval = setInterval(() => {
-      fetchUsers();
-    }, 2000);
-    return () => clearInterval(interval);
+    // Removed auto-refresh - was causing dashboard to shake/flicker
+    // Users will be updated on create/update/delete instead
   }, [fetchUsers]);
 
   const handleUpdate = async (userId: number, role: string, department: string | null) => {
@@ -122,19 +129,28 @@ const AccountManagement = () => {
 
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} user(s)? This cannot be undone.`)) return;
-
+    
     try {
       for (const id of Array.from(selectedIds)) {
-        await fetch(`${API_URL}/api/users/${id}`, { method: "DELETE" });
+        const response = await fetch(`${API_URL}/api/users/${id}`, { 
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" }
+        });
+        
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(err.error || 'Failed to delete user');
+        }
       }
+      
+      // Optimistic UI update
+      setUsers((prev) => prev.filter((u) => !selectedIds.has(u.id)));
       setSelectedIds(new Set());
-      toast({ title: "Users deleted" });
-      fetchUsers();
+      setShowDeleteConfirm(false);
+      toast({ title: "Users deleted successfully" });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       toast({ variant: "destructive", title: "Delete Failed", description: errorMessage });
-      fetchUsers();
     }
   };
 
@@ -159,14 +175,26 @@ const AccountManagement = () => {
           department: newUser.role === "staff" ? newUser.department : null,
         }),
       });
-      if (!response.ok) throw new Error("Failed to create user");
-      toast({ title: "User created successfully" });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to create user' }));
+        throw new Error(errorData.error || errorData.details || 'Failed to create user');
+      }
+      
+      const newUserData = await response.json();
+      if (!newUserData || !newUserData.id) {
+        throw new Error('Invalid response from server - no user data returned');
+      }
+      
+      // Optimistically add new user to list
+      setUsers((prev) => [...prev, newUserData]);
+      toast({ title: "Success", description: "User created successfully" });
       setNewUser({ first_name: "", last_name: "", email: "", password: "", role: "staff", department: "" });
       setCreateDialogOpen(false);
-      fetchUsers();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      toast({ variant: "destructive", title: "Create Failed", description: errorMessage });
+      console.error('User creation error:', error);
+      toast({ variant: "destructive", title: "Error", description: errorMessage });
     } finally {
       setCreateLoading(false);
     }
@@ -274,26 +302,38 @@ const AccountManagement = () => {
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-xl border bg-card p-4">
-          <p className="text-sm font-semibold text-foreground">
+        <div className="flex items-center justify-between bg-destructive/10 p-4 rounded-xl border border-destructive/20 animate-in slide-in-from-top-4">
+          <span className="text-sm font-bold text-destructive">
             {selectedIds.size} user{selectedIds.size === 1 ? "" : "s"} selected
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={toggleSelectAll}
-              className="rounded-lg border border-muted/60 bg-muted/10 px-4 py-2 text-sm font-semibold text-muted-foreground hover:bg-muted/20"
-            >
-              {selectedIds.size === users.length ? "Unselect all" : "Select all"}
-            </button>
-            <button
-              onClick={handleDeleteSelected}
-              className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white hover:bg-destructive/90"
-            >
-              Delete selected
-            </button>
-          </div>
+          </span>
+          <button 
+            onClick={() => setShowDeleteConfirm(true)}
+            className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
+          >
+            <Trash2 className="h-4 w-4" />
+            DELETE SELECTED
+          </button>
         </div>
       )}
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Users?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete {selectedIds.size} selected user{selectedIds.size === 1 ? "" : "s"}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-3 justify-end">
+            <AlertDialogCancel onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSelected} className="bg-destructive hover:bg-destructive/90">
+              Yes, Delete
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="rounded-xl border bg-card overflow-hidden">
         {loading ? (

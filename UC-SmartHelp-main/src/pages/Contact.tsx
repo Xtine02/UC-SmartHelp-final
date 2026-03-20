@@ -1,13 +1,26 @@
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Phone, MapPin } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Mail, Phone, MapPin, X } from "lucide-react";
 const Contact = () => {
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       
       <div className="container max-w-3xl py-16 space-y-8">
-      <h1 className="text-3xl font-bold text-foreground text-center">Contact Us</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-foreground flex-1">Contact Us</h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate(-1)}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-6 w-6" />
+        </Button>
+      </div>
       <div className="grid gap-6 sm:grid-cols-3">
         <Card className="text-center">
           <CardContent className="pt-6 space-y-2">

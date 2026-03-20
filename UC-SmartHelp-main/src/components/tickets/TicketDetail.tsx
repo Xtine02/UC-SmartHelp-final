@@ -38,12 +38,8 @@ const TicketDetail = ({ ticket, onBack }: Props) => {
 
   useEffect(() => {
     fetchMessages();
-
-    const poll = setInterval(() => {
-      fetchMessages();
-    }, 5000);
-
-    return () => clearInterval(poll);
+    // Removed polling - was causing resource exhaustion
+    // Messages update through Supabase real-time subscriptions
   }, [ticket.id]);
 
   const handleSendReply = async () => {

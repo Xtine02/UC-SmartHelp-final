@@ -55,12 +55,9 @@ const ChatHistory = () => {
     window.addEventListener('user-logout', clearAfterGuestLogout);
     window.addEventListener('chatbot-reset', clearAfterGuestLogout);
 
-    const intervalId = setInterval(fetchHistory, 3000);
-
     return () => {
       window.removeEventListener('chatbot-history-updated', updateListener);
       window.removeEventListener('user-logout', clearAfterGuestLogout);
-      clearInterval(intervalId);
     };
   }, []);
 

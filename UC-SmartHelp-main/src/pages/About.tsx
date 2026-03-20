@@ -1,14 +1,28 @@
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 import logo from "@/assets/uc-smarthelp-logo.jpg";
 const About = () => {
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       
       <div className="container max-w-3xl py-16 space-y-8">
-      <div className="text-center">
-        <img src={logo} alt="UC SmartHelp" className="mx-auto h-24 mb-6" />
-        <h1 className="text-3xl font-bold text-foreground">About UC SmartHelp</h1>
+      <div className="flex items-start justify-between mb-6">
+        <div className="text-center flex-1">
+          <img src={logo} alt="UC SmartHelp" className="mx-auto h-24 mb-6" />
+          <h1 className="text-3xl font-bold text-foreground">About UC SmartHelp</h1>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate(-1)}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-6 w-6" />
+        </Button>
       </div>
       <div className="space-y-4 text-muted-foreground leading-relaxed">
         <p>

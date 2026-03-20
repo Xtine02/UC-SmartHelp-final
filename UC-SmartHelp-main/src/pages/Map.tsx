@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -8,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { X } from "lucide-react";
 
 interface BuildingFloors {
   [key: string]: string[];
@@ -20,6 +23,7 @@ const BUILDINGS: BuildingFloors = {
 };
 
 const Map = () => {
+  const navigate = useNavigate();
   const [selectedBuilding, setSelectedBuilding] = useState<string>("");
   const [selectedFloor, setSelectedFloor] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string>("");
@@ -47,11 +51,21 @@ const Map = () => {
       <Navbar />
 
       <div className="container py-12 space-y-8">
-        <div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Campus Map</h1>
-          <p className="text-muted-foreground">
-            Navigate through different buildings and floors of University of Cebu
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-foreground mb-2">Campus Map</h1>
+            <p className="text-muted-foreground">
+              Navigate through different buildings and floors of University of Cebu
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-6 w-6" />
+          </Button>
         </div>
 
         {/* Selection Cards */}
