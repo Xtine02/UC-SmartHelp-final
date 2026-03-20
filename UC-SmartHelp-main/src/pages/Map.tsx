@@ -157,19 +157,6 @@ const Map = () => {
             </CardContent>
           </Card>
         )}
-
-        {/* Instructions for adding maps */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-base text-blue-900">How to Add Floor Maps</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-blue-800 space-y-2">
-            <p>1. Place your floor map images in the <code className="bg-white px-2 py-1 rounded">/public/maps</code> folder</p>
-            <p>2. Organize by building: <code className="bg-white px-2 py-1 rounded">/public/maps/Admin Building/1st Floor.png</code></p>
-            <p>3. Supported formats: PNG, JPG, JPEG, WebP</p>
-            <p>4. Recommended size: 1200x800px or larger</p>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
