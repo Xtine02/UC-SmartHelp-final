@@ -311,13 +311,21 @@ const AccountManagement = () => {
           <span className="text-sm font-bold text-destructive">
             {selectedIds.size} user{selectedIds.size === 1 ? "" : "s"} selected
           </span>
-          <button 
-            onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
-          >
-            <Trash2 className="h-4 w-4" />
-            DELETE SELECTED
-          </button>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setSelectedIds(new Set())}
+              className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg font-bold text-xs hover:bg-secondary/80 transition-all shadow-lg active:scale-95"
+            >
+              CANCEL
+            </button>
+            <button 
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
+            >
+              <Trash2 className="h-4 w-4" />
+              DELETE SELECTED
+            </button>
+          </div>
         </div>
       )}
 

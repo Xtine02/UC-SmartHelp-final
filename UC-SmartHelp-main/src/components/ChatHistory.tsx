@@ -8,8 +8,11 @@ interface ChatEntry {
 }
 
 const ChatHistory = () => {
-  const [history, setHistory] = useState<ChatEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Chat history functionality has been removed
+  return null;
+};
+
+export default ChatHistory;
 
   useEffect(() => {
     const fetchHistory = async () => {

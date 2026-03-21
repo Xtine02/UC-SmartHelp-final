@@ -117,6 +117,10 @@ const ReviewAnalytics = ({ department, userDepartment, userRole }: ReviewAnalyti
       if (department) {
         deptUrl.searchParams.append("department", department);
         console.log('🔍 [Analytics] Fetching feedback for department:', department);
+      } else if (userRole?.toLowerCase() === "staff" && userDepartment) {
+        // For staff, only fetch their own department feedback
+        deptUrl.searchParams.append("department", userDepartment);
+        console.log('🔍 [Analytics] Staff user - fetching feedback for department:', userDepartment);
       } else {
         console.log('🔍 [Analytics] No department specified - fetching all feedback');
       }
@@ -125,14 +129,19 @@ const ReviewAnalytics = ({ department, userDepartment, userRole }: ReviewAnalyti
       const deptData: DepartmentFeedback[] = deptResponse.ok ? await deptResponse.json() : [];
       setDeptFeedback(deptData);
 
-      // Fetch website feedback
-      try {
-        const websiteResponse = await fetch(`${API_URL}/api/website-feedback`);
-        const websiteData = websiteResponse.ok ? await websiteResponse.json() : [];
-        console.log('📊 [Analytics] Website feedback fetched:', websiteData.length, 'records');
-        setWebsiteFeedback(websiteData);
-      } catch (error) {
-        console.error("❌ [Analytics] Error fetching website feedback:", error);
+      // Fetch website feedback only for admins, NOT for staff
+      if (userRole?.toLowerCase() !== "staff") {
+        try {
+          const websiteResponse = await fetch(`${API_URL}/api/website-feedback`);
+          const websiteData = websiteResponse.ok ? await websiteResponse.json() : [];
+          console.log('📊 [Analytics] Website feedback fetched:', websiteData.length, 'records');
+          setWebsiteFeedback(websiteData);
+        } catch (error) {
+          console.error("❌ [Analytics] Error fetching website feedback:", error);
+          setWebsiteFeedback([]);
+        }
+      } else {
+        // Clear website feedback for staff users
         setWebsiteFeedback([]);
       }
     } catch (error) {
@@ -162,7 +171,7 @@ const ReviewAnalytics = ({ department, userDepartment, userRole }: ReviewAnalyti
     fetchData();
     // Removed auto-refresh - was causing resource exhaustion
     // Data updates on filter/dropdown changes instead
-  }, [department]);
+  }, [department, userRole, userDepartment]);
 
   // Combine feedback based on filter and feedback type
   useEffect(() => {
@@ -179,30 +188,38 @@ const ReviewAnalytics = ({ department, userDepartment, userRole }: ReviewAnalyti
           return normalizedFeedbackDept === normalizedRequestedDept;
         });
       } else {
-        // Filter accounting feedback based on user access (only in admin/multi-dept view)
-        if (!canAccessAccountingFeedback()) {
-          feedbackToAdd = feedbackToAdd.filter(f => !isAccountingDept(f.department));
-        }
-        
-        // Filter by selected department from dropdown
-        if (selectedDept !== "all") {
-          const normalizedSelectedDept = normalizeDept(selectedDept);
+        // Staff users can only see their own department - enforce this as a safety measure
+        if (userRole?.toLowerCase() === "staff" && userDepartment) {
+          const normalizedUserDept = normalizeDept(userDepartment);
           feedbackToAdd = feedbackToAdd.filter(f => {
             const normalizedFeedbackDept = normalizeDept(f.department);
-            return normalizedFeedbackDept === normalizedSelectedDept;
+            return normalizedFeedbackDept === normalizedUserDept;
           });
+        } else {
+          // Filter accounting feedback based on user access (only in admin/multi-dept view)
+          if (!canAccessAccountingFeedback()) {
+            feedbackToAdd = feedbackToAdd.filter(f => !isAccountingDept(f.department));
+          }
+          
+          // Filter by selected department from dropdown
+          if (selectedDept !== "all") {
+            const normalizedSelectedDept = normalizeDept(selectedDept);
+            feedbackToAdd = feedbackToAdd.filter(f => {
+              const normalizedFeedbackDept = normalizeDept(f.department);
+              return normalizedFeedbackDept === normalizedSelectedDept;
+            });
+          }
         }
       }
       
       combined = combined.concat(feedbackToAdd.map(f => ({ ...f, type: "department" })));
     }
 
-    // Always include website feedback for admins (not for staff)
+    // Only include website feedback for admins, NEVER for staff
     if (userRole?.toLowerCase() !== "staff") {
-      combined = combined.concat(websiteFeedback.map(f => ({ ...f, type: "website" })));
-    } else if (feedbackType === "all" || feedbackType === "website") {
-      // For staff, only include website feedback if explicitly selected
-      combined = combined.concat(websiteFeedback.map(f => ({ ...f, type: "website" })));
+      if (feedbackType === "all" || feedbackType === "website") {
+        combined = combined.concat(websiteFeedback.map(f => ({ ...f, type: "website" })));
+      }
     }
 
     // Sort by date_submitted descending (fallback to created_at for backward compatibility)
@@ -215,7 +232,7 @@ const ReviewAnalytics = ({ department, userDepartment, userRole }: ReviewAnalyti
     });
 
     setAllFeedback(combined);
-  }, [deptFeedback, websiteFeedback, feedbackType, userDepartment, department, selectedDept]);
+  }, [deptFeedback, websiteFeedback, feedbackType, userDepartment, userRole, department, selectedDept]);
 
   const isHelpfulRating = (isHelpful: boolean | number | undefined) => !!isHelpful;
 

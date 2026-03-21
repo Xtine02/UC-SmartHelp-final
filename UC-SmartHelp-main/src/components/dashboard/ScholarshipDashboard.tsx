@@ -30,6 +30,11 @@ const normalizeStatus = (status: any) =>
     .replace(/[\s\-]+/g, '_')
     || 'pending';
 
+// Helper to check if ticket is new (unacknowledged) for scholarship staff
+const isStaffTicketNew = (ticket: Ticket): boolean => {
+  return !ticket.acknowledge_at;
+};
+
 interface Ticket {
   id: string;
   ticket_number: string;
@@ -72,6 +77,7 @@ const ScholarshipDashboard = () => {
   
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
+  const isStaffRole = (user?.role || "").toString().trim().toLowerCase() === "staff";
   
   const { showConfirm, handleConfirmLeave, handleStayOnPage } = useBackConfirm(undefined);
 
@@ -141,9 +147,32 @@ const ScholarshipDashboard = () => {
       }
 
       // Update the ticket in state locally instead of refetching
+      const oldTicket = tickets.find(t => t.id === ticketId);
+      const oldStatus = oldTicket?.status;
+      
       setTickets(tickets.map(t => 
         t.id === ticketId ? { ...t, status: newStatus as TicketStatus } : t
       ));
+      
+      // Update stats in real-time
+      if (oldStatus && oldStatus !== newStatus) {
+        setStats(prev => {
+          const updated = { ...prev };
+          // Decrement old status count
+          if (oldStatus === "pending") updated.pending--;
+          else if (oldStatus === "reopened") updated.reopened--;
+          else if (oldStatus === "in_progress") updated.in_progress--;
+          else if (oldStatus === "resolved") updated.resolved--;
+          
+          // Increment new status count
+          if (newStatus === "pending") updated.pending++;
+          else if (newStatus === "reopened") updated.reopened++;
+          else if (newStatus === "in_progress") updated.in_progress++;
+          else if (newStatus === "resolved") updated.resolved++;
+          
+          return updated;
+        });
+      }
       
       toast({ title: "Success", description: "Status updated successfully" });
     } catch (error: any) {
@@ -354,13 +383,21 @@ const ScholarshipDashboard = () => {
                 <span className="text-sm font-bold text-destructive">
                   {selectedIds.size} ticket(s) selected
                 </span>
-                <button 
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  DELETE SELECTED
-                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setSelectedIds(new Set())}
+                    className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg font-bold text-xs hover:bg-secondary/80 transition-all shadow-lg active:scale-95"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    DELETE SELECTED
+                  </button>
+                </div>
               </div>
             )}
 
@@ -418,7 +455,11 @@ const ScholarshipDashboard = () => {
                     sortedTickets.map((t) => (
                       <TableRow 
                         key={t.id} 
-                        className={`cursor-pointer transition-colors border-b ${selectedIds.has(t.id) ? 'bg-destructive/5' : 'hover:bg-blue-50/50'} ${!t.acknowledge_at ? 'bg-slate-100/60 text-slate-600' : ''}`}
+                        className={`cursor-pointer transition-all ${selectedIds.has(t.id) ? 'bg-destructive/5 border-l-4 border-destructive' : ''} ${
+                          isStaffRole && isStaffTicketNew(t)
+                            ? 'bg-amber-50/80 hover:bg-amber-50 border-l-4 border-amber-400 font-semibold text-amber-900' 
+                            : 'hover:bg-emerald-50/50 border-l-4 border-transparent'
+                        }`}
                         onClick={() => handleTicketClick(t)}
                       >
                         <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
@@ -487,6 +528,7 @@ const ScholarshipDashboard = () => {
           onClose={() => { setSelectedTicket(null); }}
           isStaff={true}
           onFeedbackSuccess={() => {}}
+          onReplySuccess={() => fetchData()}
         />
       )}
     </div>

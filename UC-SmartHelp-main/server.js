@@ -151,37 +151,6 @@ app.get('/api/tickets', async (req, res) => {
   }
 });
 
-// Chatbot history routes
-app.post('/api/chatbot-history', async (req, res) => {
-  const { user_id, sender_type, message } = req.body;
-  if (!user_id || !sender_type || !message) {
-    return res.status(400).json({ error: "Missing fields" });
-  }
-  
-  try {
-    const [result] = await db.query(
-      'INSERT INTO chatbot_history (user_id, sender_type, message) VALUES (?, ?, ?)',
-      [user_id, sender_type, message]
-    );
-    res.status(201).json({ message: "Chat history saved", id: result.insertId });
-  } catch (error) {
-    res.status(500).json({ error: "Database Error", details: error.message });
-  }
-});
-
-app.get('/api/chatbot-history/:userId', async (req, res) => {
-  const { userId } = req.params;
-  try {
-    const [rows] = await db.query(
-      'SELECT * FROM chatbot_history WHERE user_id = ?',
-      [userId]
-    );
-    res.json(rows);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch chat history", details: error.message });
-  }
-});
-
 // Website Feedback endpoint
 app.post('/api/website-feedback', async (req, res) => {
   try {
@@ -220,6 +189,46 @@ app.get('/api/website-feedback', async (req, res) => {
   } catch (error) {
     console.error("Error fetching website feedback:", error);
     res.status(500).json({ error: "Failed to fetch website feedback", details: error.message });
+  }
+});
+
+// User management endpoints (support id/user_id schema)
+app.patch('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { role, department } = req.body;
+  try {
+    const [result] = await db.query(
+      'UPDATE users SET role = ?, department = ? WHERE user_id = ?',
+      [role, department || null, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'User updated' });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Error updating user', details: error.message });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query(
+      'DELETE FROM users WHERE user_id = ?',
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Error deleting user', details: error.message });
   }
 });
 

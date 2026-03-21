@@ -156,18 +156,6 @@ const initializeDatabase = async () => {
       )
     `);
 
-    // Create chatbot history table if it does not exist
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS chatbot_history (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        sender_type ENUM('student','ai') NOT NULL DEFAULT 'student',
-        message TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-
     // Ensure response table has required columns
     const [responseColumns] = await connection.query<DBColumn[]>(`SHOW COLUMNS FROM ${RESPONSE_TABLE}`);
     const responseColumnNames = responseColumns.map((c) => c.Field);
@@ -254,6 +242,35 @@ const formatUserResponse = (user: User) => {
     fullName: `${user.first_name || user.firstName} ${user.last_name || user.lastName}`,
     email: user.email
   };
+};
+
+const getUserPkName = async (): Promise<'id' | 'user_id'> => {
+  const [columns] = await db.query<DBColumn[]>("SHOW COLUMNS FROM users");
+  const columnNames = columns.map((c) => c.Field.toLowerCase());
+  if (columnNames.includes('user_id')) return 'user_id';
+  return 'id';
+};
+
+const detectUserPk = async (userId: string | number): Promise<'id' | 'user_id' | null> => {
+  const [columns] = await db.query<DBColumn[]>("SHOW COLUMNS FROM users");
+  const columnNames = columns.map((c) => c.Field.toLowerCase());
+
+  const candidates: ('user_id' | 'id')[] = columnNames.includes('user_id') ? ['user_id', 'id'] : ['id', 'user_id'];
+
+  for (const candidate of candidates) {
+    if (!columnNames.includes(candidate)) continue;
+    try {
+      const [rows] = await db.query<RowDataPacket[]>(
+        `SELECT 1 FROM users WHERE ${candidate} = ? LIMIT 1`,
+        [userId]
+      );
+      if (rows.length > 0) return candidate;
+    } catch (error: unknown) {
+      // ignore and continue with fallback candidate
+    }
+  }
+
+  return null;
 };
 
 app.post('/api/register', async (req: Request, res: Response) => {
@@ -1089,7 +1106,9 @@ app.post('/api/users', async (req: Request, res: Response) => {
     
     console.log('User inserted successfully with ID:', result.insertId);
     
-    const [inserted] = await db.query<RowDataPacket[]>('SELECT id, first_name, last_name, email, role, department FROM users WHERE id = ?', [result.insertId]);
+    const pk = await getUserPkName();
+
+    const [inserted] = await db.query<RowDataPacket[]>(`SELECT ${pk} AS id, first_name, last_name, email, role, department FROM users WHERE ${pk} = ?`, [result.insertId]);
     
     if (!inserted || inserted.length === 0) {
       console.error('Failed to retrieve created user with ID:', result.insertId);
@@ -1105,28 +1124,45 @@ app.post('/api/users', async (req: Request, res: Response) => {
 });
 
 app.patch('/api/users/:id', async (req: Request, res: Response) => {
-const { id } = req.params;
-const { role, department } = req.body;
-try {
-  await db.execute('UPDATE users SET role = ?, department = ? WHERE id = ?', [role, department || null, id]);
-  res.json({ message: "User updated" });
-} catch (error: unknown) {
-  res.status(500).json({ error: "Error updating user" });
-}
+  const { id } = req.params;
+  const { role, department } = req.body;
+
+  try {
+    const pkName = await getUserPkName();
+
+    const [result] = await db.execute<ResultSetHeader>(
+      `UPDATE users SET role = ?, department = ? WHERE ${pkName} = ?`,
+      [role, department || null, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: "User updated" });
+  } catch (error: unknown) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: "Error updating user", details: error instanceof Error ? error.message : String(error) });
+  }
 });
 
 app.delete('/api/users/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
-    console.log('Deleting user with ID:', id);
+    console.log('Deleting user with id/user_id:', id);
+
+    const pkName = await getUserPkName();
+
     const [result] = await db.query<ResultSetHeader>(
-      'DELETE FROM users WHERE id = ?',
+      `DELETE FROM users WHERE ${pkName} = ?`,
       [id]
     );
+
     if (result.affectedRows === 0) {
-      console.log('User not found:', id);
+      console.warn('User not found after delete attempt:', id, 'pk:', pkName);
       return res.status(404).json({ error: 'User not found' });
     }
+
     console.log('User deleted successfully:', id);
     res.json({ message: 'User deleted successfully' });
   } catch (error: unknown) {
@@ -1200,109 +1236,6 @@ app.delete('/api/audit-trail/:id', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     console.error('Error deleting audit entry:', error);
     res.status(500).json({ error: 'Error deleting audit entry' });
-  }
-});
-
-// Chatbot history endpoints (per-user)
-app.post('/api/chatbot-history', async (req: Request, res: Response) => {
-  const { user_id, sender_type, message } = req.body;
-
-  if (!user_id || !sender_type || !message) {
-    return res.status(400).json({ error: 'Missing fields' });
-  }
-
-  try {
-    const [result] = await db.query<ResultSetHeader>(
-      'INSERT INTO chatbot_history (user_id, sender_type, message) VALUES (?, ?, ?)',
-      [user_id, sender_type, message]
-    );
-
-    const insertedId = (result as ResultSetHeader).insertId;
-    await logAudit(req, user_id, `Chatbot ${sender_type}`, 'chatbot', insertedId.toString());
-
-    res.status(201).json({ message: 'Chat history saved', id: insertedId });
-  } catch (error: unknown) {
-    console.error('Error saving chatbot history:', error);
-    res.status(500).json({ error: 'Database Error', details: error instanceof Error ? error.message : String(error) });
-  }
-});
-
-app.get('/api/chatbot-history/:userId', async (req: Request, res: Response) => {
-  const { userId } = req.params;
-  const all = req.query.all === 'true';
-
-  if (!userId) {
-    return res.status(400).json({ error: 'Missing userId' });
-  }
-
-  try {
-    const query = all
-      ? 'SELECT * FROM chatbot_history WHERE user_id = ?'
-      : 'SELECT * FROM chatbot_history WHERE user_id = ?';
-
-    const [rows] = await db.query<RowDataPacket[]>(query, [userId]);
-    res.json(rows);
-  } catch (error: unknown) {
-    console.error('Error fetching chatbot history:', error);
-    res.status(500).json({ error: 'Failed to fetch chat history', details: error instanceof Error ? error.message : String(error) });
-  }
-});
-
-// Fixed Chatbot Chat Endpoint - Properly saves messages to database
-app.post('/api/chat', async (req: Request, res: Response) => {
-  const { message, userId } = req.body;
-
-  if (!message || !userId) {
-    return res.status(400).json({ error: 'Missing message or userId' });
-  }
-
-  try {
-    // Save user's message to database first
-    await db.execute<ResultSetHeader>(
-      'INSERT INTO chatbot_history (user_id, sender_type, message) VALUES (?, ?, ?)',
-      [userId, 'student', message]
-    );
-
-    // Call Flowise API
-    const chatflowId = '879b246d-a9f5-44e6-9d5f-07b4a38bf65b';
-    const flowiseResponse = await fetch(
-      `http://localhost:3001/api/v1/prediction/${chatflowId}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: message,
-          sessionId: userId
-        })
-      }
-    );
-
-    if (!flowiseResponse.ok) {
-      throw new Error(`Flowise API error: ${flowiseResponse.statusText}`);
-    }
-
-    const flowiseData = await flowiseResponse.json();
-    const aiResponse = flowiseData.text || flowiseData.message || '';
-
-    // Save AI response to database
-    if (aiResponse) {
-      await db.execute<ResultSetHeader>(
-        'INSERT INTO chatbot_history (user_id, sender_type, message) VALUES (?, ?, ?)',
-        [userId, 'ai', aiResponse]
-      );
-    }
-
-    res.json({
-      success: true,
-      message: aiResponse,
-      data: flowiseData
-    });
-  } catch (error: unknown) {
-    console.error('Error in chat endpoint:', error);
-    res.status(500).json({
-      error: 'Chat processing failed',
-      details: error instanceof Error ? error.message : String(error)
-    });
   }
 });
 

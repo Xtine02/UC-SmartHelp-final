@@ -29,6 +29,11 @@ const normalizeStatus = (status: string | null | undefined): TicketStatus =>
     .replace(/[\s-]+/g, '_')
     || 'pending') as TicketStatus;
 
+// Helper to check if ticket is new (unacknowledged) or has unread replies for staff
+const isStaffTicketNew = (ticket: Ticket): boolean => {
+  return ticket.has_unread_reply || !ticket.staff_acknowledge_at;
+};
+
 interface Ticket {
   id: string;
   ticket_number: string;
@@ -74,6 +79,7 @@ const AccountingDashboard = () => {
   
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
+  const isStaffRole = (user?.role || "").toString().trim().toLowerCase() === "staff";
   
   const { showConfirm, handleConfirmLeave, handleStayOnPage } = useBackConfirm(undefined);
 
@@ -143,9 +149,32 @@ const AccountingDashboard = () => {
       }
 
       // Update the ticket in state locally instead of refetching
+      const oldTicket = tickets.find(t => t.id === ticketId);
+      const oldStatus = oldTicket?.status;
+      
       setTickets(tickets.map(t => 
         t.id === ticketId ? { ...t, status: newStatus as TicketStatus } : t
       ));
+      
+      // Update stats in real-time
+      if (oldStatus && oldStatus !== newStatus) {
+        setStats(prev => {
+          const updated = { ...prev };
+          // Decrement old status count
+          if (oldStatus === "pending") updated.pending--;
+          else if (oldStatus === "reopened") updated.reopened--;
+          else if (oldStatus === "in_progress") updated.in_progress--;
+          else if (oldStatus === "resolved") updated.resolved--;
+          
+          // Increment new status count
+          if (newStatus === "pending") updated.pending++;
+          else if (newStatus === "reopened") updated.reopened++;
+          else if (newStatus === "in_progress") updated.in_progress++;
+          else if (newStatus === "resolved") updated.resolved++;
+          
+          return updated;
+        });
+      }
       
       toast({ title: "Success", description: "Status updated successfully" });
       return true;
@@ -158,7 +187,9 @@ const AccountingDashboard = () => {
   };
 
   const handleTicketClick = async (ticket: Ticket) => {
-    // Always call the open endpoint for staff to handle auto status updates
+    // Only mark tickets as read for staff users, NOT for admin/department heads
+    const isAdminOrHead = ["admin", "accountant", "scholarship"].includes((user?.role || "").toString().trim().toLowerCase());
+    
     try {
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
       const userId = user?.id || user?.userId || user?.user_id;
@@ -173,29 +204,34 @@ const AccountingDashboard = () => {
         const data = await response.json();
         if (data.updated && data.ticket) {
           const normalizedStatus = (data.ticket.status as string)?.toLowerCase().trim().replace(/[\s-]+/g, '_');
-          const updatedTicket = { ...ticket, ...data.ticket, status: normalizedStatus, has_unread_reply: false };
+          const updatedTicket = { 
+            ...ticket, 
+            ...data.ticket, 
+            status: normalizedStatus, 
+            has_unread_reply: isAdminOrHead ? ticket.has_unread_reply : false 
+          };
           setSelectedTicket(updatedTicket);
-          // Clear highlighting by removing unread status
+          // Clear highlighting only for staff, NOT for admin/heads
           setTickets((prev) => prev.map((t) =>
-            t.id === ticket.id ? { ...t, has_unread_reply: false } : t
+            t.id === ticket.id ? { ...t, has_unread_reply: isAdminOrHead ? t.has_unread_reply : false } : t
           ));
           return;
         }
-        setSelectedTicket({ ...ticket, has_unread_reply: false });
+        setSelectedTicket({ ...ticket, has_unread_reply: isAdminOrHead ? ticket.has_unread_reply : false });
         setTickets((prev) => prev.map((t) =>
-          t.id === ticket.id ? { ...t, has_unread_reply: false } : t
+          t.id === ticket.id ? { ...t, has_unread_reply: isAdminOrHead ? t.has_unread_reply : false } : t
         ));
       } else {
-        setSelectedTicket({ ...ticket, has_unread_reply: false });
+        setSelectedTicket({ ...ticket, has_unread_reply: isAdminOrHead ? ticket.has_unread_reply : false });
         setTickets((prev) => prev.map((t) =>
-          t.id === ticket.id ? { ...t, has_unread_reply: false } : t
+          t.id === ticket.id ? { ...t, has_unread_reply: isAdminOrHead ? t.has_unread_reply : false } : t
         ));
       }
     } catch (error) {
       console.error("Error opening ticket:", error);
-      setSelectedTicket({ ...ticket, has_unread_reply: false });
+      setSelectedTicket({ ...ticket, has_unread_reply: isAdminOrHead ? ticket.has_unread_reply : false });
       setTickets((prev) => prev.map((t) =>
-        t.id === ticket.id ? { ...t, has_unread_reply: false } : t
+        t.id === ticket.id ? { ...t, has_unread_reply: isAdminOrHead ? t.has_unread_reply : false } : t
       ));
     }
   };
@@ -371,13 +407,21 @@ const AccountingDashboard = () => {
                 <span className="text-sm font-bold text-destructive">
                   {selectedIds.size} ticket(s) selected
                 </span>
-                <button 
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  DELETE SELECTED
-                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setSelectedIds(new Set())}
+                    className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg font-bold text-xs hover:bg-secondary/80 transition-all shadow-lg active:scale-95"
+                  >
+                    CANCEL
+                  </button>
+                  <button 
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    DELETE SELECTED
+                  </button>
+                </div>
               </div>
             )}
 
@@ -445,7 +489,7 @@ const AccountingDashboard = () => {
                       <TableRow 
                         key={t.id} 
                         className={`cursor-pointer transition-all ${selectedIds.has(t.id) ? 'bg-destructive/5 border-l-4 border-destructive' : ''} ${
-                          t.has_unread_reply
+                          isStaffRole && isStaffTicketNew(t)
                             ? 'bg-amber-50/80 hover:bg-amber-50 border-l-4 border-amber-400 font-semibold text-amber-900' 
                             : 'hover:bg-emerald-50/50 border-l-4 border-transparent'
                         }`}
@@ -517,6 +561,7 @@ const AccountingDashboard = () => {
           onClose={() => { setSelectedTicket(null); }}
           isStaff={true}
           onFeedbackSuccess={() => {}}
+          onReplySuccess={() => fetchData()}
         />
       )}
     </div>

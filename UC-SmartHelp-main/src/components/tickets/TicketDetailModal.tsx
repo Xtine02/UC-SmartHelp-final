@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { X, Send, ChevronDown } from "lucide-react";
+import { X, Send } from "lucide-react";
 import { format } from "date-fns";
 import FeedbackDialog from "./FeedbackDialog";
 
@@ -31,9 +31,10 @@ interface Props {
   onClose: () => void;
   isStaff?: boolean;
   onFeedbackSuccess?: () => void;
+  onReplySuccess?: () => void;
 }
 
-const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess }: Props) => {
+const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess, onReplySuccess }: Props) => {
   // Manual Auth
   const savedUser = localStorage.getItem("user");
   const user = savedUser ? JSON.parse(savedUser) : null;
@@ -50,7 +51,6 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [forwardDept, setForwardDept] = useState("");
   const [showForward, setShowForward] = useState(false);
-  const [showDeptDropdown, setShowDeptDropdown] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [departments, setDepartments] = useState<{id: string | number, name: string}[]>([]);
   const [currentStatus, setCurrentStatus] = useState(ticket.status);
@@ -96,10 +96,10 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
       // Always use fallback as departments to ensure all 7 are shown
       const finalDepts = Array.isArray(data) && data.length > 0 ? data : fallbackDepartments;
       console.log("Final departments to display:", finalDepts);
-      setDepartments(fallbackDepartments); // Use fallback to guarantee all 7
+      setDepartments(finalDepts); // Use final data if available
 
       // If the ticket already has a department, try to preselect it
-      const deptList = fallbackDepartments;
+      const deptList = finalDepts;
       const currentId = ticket.department_id ||
         (ticket.department
           ? deptList.find((d: any) => d.name?.toString().toLowerCase().trim() === ticket.department?.toString().toLowerCase().trim())?.id
@@ -214,10 +214,28 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
         setReply("");
         setShowReplyBox(false);
         fetchMessages();
+        
+        // For staff, acknowledge the ticket after replying to remove the highlight
+        if (isStaffUser) {
+          try {
+            await fetch(`${API_URL}/api/tickets/${ticket.id}/acknowledge`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ user_id: userId, role: 'staff' })
+            });
+            
+            // Notify parent component to refresh tickets from server
+            onReplySuccess?.();
+          } catch (ackError) {
+            console.error("Error acknowledging ticket after reply:", ackError);
+            // Don't fail the operation if acknowledge fails
+          }
+        }
+        
         toast({ title: "Reply sent successfully" });
 
         // Logic for auto-status transition on reply:
-        if (isStaff) {
+        if (isStaffUser) {
           // If staff replies to a pending or reopened ticket, move it to in_progress
           if (currentStatus?.toLowerCase() === "pending" || currentStatus?.toLowerCase() === "reopened") {
             await handleStatusChange("in_progress");
@@ -391,47 +409,32 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
           ) : showForward ? (
             <div className="space-y-4">
               <h4 className="text-sm font-black uppercase text-purple-600 ml-1">Select Department to Forward</h4>
-              <div className="relative w-full">
-                <button
-                  onClick={() => setShowDeptDropdown(!showDeptDropdown)}
-                  className="w-full rounded-xl bg-background border-2 border-purple-200 h-12 px-4 flex items-center justify-between text-left cursor-pointer hover:border-purple-300 transition-colors"
-                >
-                  <span className="text-foreground text-sm">{departments.find(d => d.id?.toString() === forwardDept)?.name || "Choose a department..."}</span>
-                  <ChevronDown className={`h-4 w-4 transition-transform flex-shrink-0 ${showDeptDropdown ? 'rotate-180' : ''}`} />
-                </button>
-                {showDeptDropdown && (
-                  <div className="absolute top-14 left-0 right-0 rounded-xl bg-background border-2 border-purple-200 shadow-2xl z-[1000] max-h-96 overflow-y-auto">
-                    {departments.map((dept, idx) => (
-                      <button
-                        key={dept.id}
-                        onClick={() => {
-                          setForwardDept(dept.id?.toString() || "");
-                          setShowDeptDropdown(false);
-                        }}
-                        className={`w-full text-left px-4 py-3 hover:bg-purple-100 text-foreground text-sm transition-colors ${
-                          idx !== departments.length - 1 ? 'border-b border-purple-100' : ''
-                        } ${forwardDept === dept.id?.toString() ? 'bg-purple-50 font-semibold' : ''}`}
-                      >
-                        {dept.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <p className="text-xs text-muted-foreground ml-1">Choose a department to redirect this ticket</p>
+              <Select value={forwardDept} onValueChange={setForwardDept}>
+                <SelectTrigger className="w-full rounded-xl border-2 border-purple-200 bg-background h-12">
+                  <SelectValue placeholder="Choose a department..." />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id?.toString() || ""}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="flex gap-3">
                 <Button 
                   onClick={handleForward} 
                   disabled={!forwardDept || loading}
-                  className="flex-1 py-6 rounded-xl font-bold bg-purple-500 hover:bg-purple-600 text-white"
+                  className="flex-1 py-6 rounded-xl font-bold bg-purple-500 hover:bg-purple-600 text-white disabled:opacity-50"
                 >
-                  {loading ? "FORWARDING..." : "FORWARD"}
+                  {loading ? "FORWARDING..." : "CONFIRM FORWARD"}
                 </Button>
                 <Button 
                   variant="outline" 
                   onClick={() => {
                     setShowForward(false);
                     setForwardDept("");
-                    setShowDeptDropdown(false);
                   }} 
                   className="rounded-xl px-8"
                 >
@@ -442,7 +445,7 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
           ) : (
             <div className="space-y-3">
               {isAdmin ? (
-                // Admin view - show FORWARD button
+                // Admin only - show FORWARD button
                 <Button 
                   onClick={() => setShowForward(true)} 
                   className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all bg-purple-500 hover:bg-purple-600 text-white uppercase italic"
@@ -450,8 +453,24 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
                   <Send className="mr-2 h-5 w-5" />
                   FORWARD TICKET
                 </Button>
+              ) : isStaffUser ? (
+                // Staff view - show REPLY or REOPEN button based on status
+                <>
+                  {(currentStatus?.toLowerCase() === "resolved" || currentStatus?.toLowerCase() === "closed") ? (
+                    <Button 
+                      onClick={() => handleStatusChange("reopened")} 
+                      className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all bg-orange-500 hover:bg-orange-600 text-white uppercase italic"
+                    >
+                      REOPEN THIS TICKET
+                    </Button>
+                  ) : (
+                    <Button onClick={() => setShowReplyBox(true)} className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all uc-gradient-btn text-white">
+                      REPLY TO TICKET
+                    </Button>
+                  )}
+                </>
               ) : (
-                // Staff/Student view - show REPLY behavior
+                // Student view - show REPLY or REOPEN behavior
                 <>
                   {currentStatus?.toLowerCase() === "resolved" ? (
                     <Button 

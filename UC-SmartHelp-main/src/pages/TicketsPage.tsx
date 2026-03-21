@@ -39,8 +39,8 @@ const TicketsPage = () => {
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="flex-1 container mx-auto p-4 md:p-8 animate-in fade-in duration-500">
-        <div className="rounded-2xl border bg-card shadow-xl overflow-hidden p-4">
+      <main className="flex-1 w-full max-w-[1700px] mx-auto p-4 md:p-8 animate-in fade-in duration-500">
+        <div className="rounded-2xl border bg-card shadow-xl overflow-hidden p-4 min-h-[720px]">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-foreground">Your Tickets</h1>
             <p className="text-muted-foreground">View and manage your support tickets</p>

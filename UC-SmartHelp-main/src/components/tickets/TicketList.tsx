@@ -109,6 +109,9 @@ const TicketList = ({ departmentFilter }: Props) => {
   const isStaffOrAdmin =
     (user?.role || "").toString().trim().toLowerCase() === "staff" ||
     (user?.role || "").toString().trim().toLowerCase() === "admin";
+  
+  const isStaff = (user?.role || "").toString().trim().toLowerCase() === "staff";
+  const isAdmin = (user?.role || "").toString().trim().toLowerCase() === "admin";
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -274,8 +277,16 @@ const TicketList = ({ departmentFilter }: Props) => {
   const handleTicketClick = async (t: Ticket) => {
     const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
     const userId = user?.id || user?.userId || user?.user_id || null;
+    const isAdminUser = (user?.role || "").toString().trim().toLowerCase() === "admin";
+    const isStaffUser = (user?.role || "").toString().trim().toLowerCase() === "staff";
 
-    if (isStaffOrAdmin) {
+    // Admin should be able to click and forward without marking the ticket as read.
+    if (isAdminUser) {
+      setSelectedTicket(t);
+      return;
+    }
+
+    if (isStaffUser) {
       try {
         const response = await fetch(`${API_URL}/api/tickets/${t.id}/open`, {
           method: "PATCH",
@@ -295,6 +306,7 @@ const TicketList = ({ departmentFilter }: Props) => {
               ...(data.ticket || {}),
               status: normalizeStatus(normalizedStatus),
               has_unread_reply: false,
+              staff_acknowledge_at: new Date().toISOString(),
             };
 
             setTickets((prev) => prev.map((ticket) =>
@@ -305,24 +317,6 @@ const TicketList = ({ departmentFilter }: Props) => {
         }
       } catch (error) {
         console.error("Error opening ticket:", error);
-      }
-
-      if (t.has_unread_reply) {
-        try {
-          const ackResponse = await fetch(`${API_URL}/api/tickets/${t.id}/acknowledge`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: userId, role: 'staff' }),
-          });
-          if (ackResponse.ok) {
-            setTickets((prev) => prev.map((ticket) =>
-              ticket.id === t.id ? { ...ticket, has_unread_reply: false, staff_acknowledge_at: new Date().toISOString() } : ticket
-            ));
-            setSelectedTicket({ ...t, has_unread_reply: false });
-          }
-        } catch (error) {
-          console.error("Error acknowledging ticket as staff:", error);
-        }
       }
 
       return;
@@ -383,20 +377,28 @@ const TicketList = ({ departmentFilter }: Props) => {
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500">
+    <div className="space-y-4 animate-in fade-in duration-500 min-h-[760px] w-full overflow-x-auto">
       {/* Selection Toolbar */}
       {selectedIds.size > 0 && (
         <div className="flex items-center justify-between bg-destructive/10 p-4 rounded-xl border border-destructive/20 animate-in slide-in-from-top-4">
           <span className="text-sm font-bold text-destructive">
             {selectedIds.size} ticket(s) selected
           </span>
-          <button 
-            onClick={handleDelete}
-            className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
-          >
-            <Trash2 className="h-4 w-4" />
-            DELETE SELECTED
-          </button>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setSelectedIds(new Set())}
+              className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg font-bold text-xs hover:bg-secondary/80 transition-all shadow-lg active:scale-95"
+            >
+              CANCEL
+            </button>
+            <button 
+              onClick={handleDelete}
+              className="flex items-center gap-2 bg-destructive text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-destructive/90 transition-all shadow-lg active:scale-95"
+            >
+              <Trash2 className="h-4 w-4" />
+              DELETE SELECTED
+            </button>
+          </div>
         </div>
       )}
 
@@ -492,10 +494,10 @@ const TicketList = ({ departmentFilter }: Props) => {
                 </TableRow>
               ) : (
                 sortedAndFilteredTickets.map((t) => (
-                  <TableRow 
+                  <TableRow
                     key={t.id} 
                     className={`cursor-pointer transition-all ${selectedIds.has(t.id) ? 'bg-destructive/10 border-l-4 border-destructive' : ''} ${
-                      isTicketNew(t, isStaffOrAdmin)
+                      isStaffOrAdmin && isTicketNew(t, isStaffOrAdmin)
                         ? 'bg-amber-50/80 hover:bg-amber-50 border-l-4 border-amber-400 font-semibold text-amber-900' 
                         : 'hover:bg-muted/50 border-l-4 border-transparent'
                     }`} 
@@ -512,7 +514,7 @@ const TicketList = ({ departmentFilter }: Props) => {
                       {t.subject}
                     </TableCell>
                     <TableCell className="text-sm">{t.departments?.name || "N/A"}</TableCell>
-                    <TableCell className="text-sm max-w-[200px] truncate">{t.description || "---"}</TableCell>
+                    <TableCell className="text-sm max-w-[500px] truncate">{t.description || "---"}</TableCell>
                     <TableCell>
                       <Badge className={`${statusColors[t.status] || "bg-gray-400"} border-none font-bold uppercase text-[10px] tracking-wider px-2.5 py-0.5`}>
                         {t.status === "in_progress" ? "In-Progress" : t.status === "resolved" ? "Resolved" : t.status === "reopened" ? "Reopened" : "Pending"}
@@ -545,6 +547,7 @@ const TicketList = ({ departmentFilter }: Props) => {
           onClose={handleCloseModal}
           isStaff={isStaffOrAdmin}
           onFeedbackSuccess={() => fetchTickets()}
+          onReplySuccess={() => fetchTickets()}
         />
       )}
 

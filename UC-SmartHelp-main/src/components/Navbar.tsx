@@ -172,7 +172,7 @@ const Navbar = () => {
                   )}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 p-2 rounded-xl">
+              <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl">
                 {/* Profile Header */}
                 <div className="flex flex-col px-2 py-3 border-b mb-2">
                   <span className="text-sm font-black text-foreground uppercase tracking-tight">
