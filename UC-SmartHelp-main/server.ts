@@ -6,6 +6,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const VERBOSE_LOGS = process.env.VERBOSE_LOGS === "1";
+if (!VERBOSE_LOGS) {
+  console.log = () => {};
+  console.info = () => {};
+  console.debug = () => {};
+  console.warn = () => {};
+}
+
 const app = express();
 app.use(express.json());
 app.use(cors());
@@ -1284,11 +1292,9 @@ app.get('/api/website-feedback', async (req: Request, res: Response) => {
 app.get('/api/announcements', async (req: Request, res: Response) => {
   try {
     const [rows] = await db.query<RowDataPacket[]>(
-      `SELECT a.id, a.user_id, a.role, a.department, a.message, 
-              DATE_FORMAT(a.posted_at, "%Y-%m-%d %H:%i:%s") as posted_at,
-              u.first_name, u.last_name
+      `SELECT a.announcement_id AS announcement_id, a.role, a.message, 
+              DATE_FORMAT(a.posted_at, "%Y-%m-%d %H:%i:%s") AS posted_at
        FROM announcement a
-       LEFT JOIN users u ON a.user_id = u.id
        ORDER BY a.posted_at DESC`
     );
     res.json(rows);
@@ -1302,9 +1308,9 @@ app.get('/api/announcements', async (req: Request, res: Response) => {
 // Create announcement (staff/admin only)
 app.post('/api/announcements', async (req: Request, res: Response) => {
   try {
-    const { user_id, role, department, message } = req.body;
+    const { role, department, message } = req.body;
 
-    if (!user_id || !role || !message) {
+    if (!role || !message) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -1314,8 +1320,8 @@ app.post('/api/announcements', async (req: Request, res: Response) => {
     }
 
     const [result] = await db.query(
-      'INSERT INTO announcement (user_id, role, department, message, posted_at) VALUES (?, ?, ?, ?, NOW())',
-      [user_id, role, department || null, message]
+      'INSERT INTO announcement (role, department, message, posted_at) VALUES (?, ?, ?, NOW())',
+      [role, department || null, message]
     );
 
     res.status(201).json({
@@ -1329,5 +1335,5 @@ app.post('/api/announcements', async (req: Request, res: Response) => {
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`server is running in port 3000`));
+app.listen(PORT, () => process.stdout.write(`Server running on port ${PORT}\n`));
 

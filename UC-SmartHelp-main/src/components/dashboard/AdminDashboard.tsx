@@ -238,50 +238,29 @@ const AdminDashboard = () => {
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <h2 className="text-xl font-bold">Tickets for</h2>
-                      <button
-                        onClick={() => setShowDeptDialog(true)}
-                        className="rounded-xl border border-muted/30 bg-background px-4 py-2 text-sm font-semibold text-foreground shadow-sm hover:bg-muted/10 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        {selectedDept || "Select Department"}
-                        <ChevronDown className="ml-2 inline h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <AlertDialog open={showDeptDialog} onOpenChange={setShowDeptDialog}>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Forward to Department</AlertDialogTitle>
-                        <AlertDialogDescription>Select a department to view tickets</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <div className="space-y-2 max-h-96 overflow-y-auto py-4">
-                        <button
-                          onClick={() => {
+                      <select
+                        value={selectedDept || ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (!value) {
                             setSelectedDept(null);
                             setView("department");
-                            setShowDeptDialog(false);
-                          }}
-                          className="w-full rounded-lg border border-muted/30 bg-background px-4 py-2 text-left text-sm font-medium hover:bg-muted/20 transition-colors"
-                        >
-                          Department Stats (Back)
-                        </button>
+                          } else {
+                            setSelectedDept(value);
+                            setView("tickets");
+                          }
+                        }}
+                        className="rounded-xl border border-muted/30 bg-background px-4 py-2 text-sm font-semibold text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="">Department Stats</option>
                         {deptStats.map((d) => (
-                          <button
-                            key={d.name}
-                            onClick={() => {
-                              setSelectedDept(d.name);
-                              setView("tickets");
-                              setShowDeptDialog(false);
-                            }}
-                            className="w-full rounded-lg border border-muted/30 bg-background px-4 py-2 text-left text-sm font-medium hover:bg-muted/20 transition-colors"
-                          >
+                          <option key={d.name} value={d.name}>
                             {d.name}
-                          </button>
+                          </option>
                         ))}
-                      </div>
-                      <AlertDialogCancel>Close</AlertDialogCancel>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                      </select>
+                    </div>
+                  </div>
 
                   <TicketList departmentFilter={selectedDept} />
                 </div>

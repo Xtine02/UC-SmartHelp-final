@@ -465,7 +465,8 @@ const TicketList = ({ departmentFilter }: Props) => {
               </div>
             </div>
           </div>
-          <Table>
+          <div className="max-h-[60vh] overflow-y-auto">
+            <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
                 <TableHead className="w-[50px] text-center">
@@ -539,6 +540,7 @@ const TicketList = ({ departmentFilter }: Props) => {
           </Table>
         </div>
       </div>
+    </div>
 
       {/* Modals */}
       {selectedTicket && (

@@ -181,6 +181,13 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
     // Messages update through Supabase real-time subscriptions
   }, [ticket?.id]);
 
+  // Re-fetch departments when forward dialog opens to ensure list is current
+  useEffect(() => {
+    if (showForward && departments.length === 0) {
+      fetchDepartments();
+    }
+  }, [showForward, departments.length]);
+
   // Separate effect to trigger status change once currentStatus is set correctly
   useEffect(() => {
     if (ticket?.id) {
@@ -410,18 +417,24 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
             <div className="space-y-4">
               <h4 className="text-sm font-black uppercase text-purple-600 ml-1">Select Department to Forward</h4>
               <p className="text-xs text-muted-foreground ml-1">Choose a department to redirect this ticket</p>
-              <Select value={forwardDept} onValueChange={setForwardDept}>
-                <SelectTrigger className="w-full rounded-xl border-2 border-purple-200 bg-background h-12">
-                  <SelectValue placeholder="Choose a department..." />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id?.toString() || ""}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {departments.length === 0 ? (
+                <div className="rounded-xl border-2 border-dashed border-gray-300 p-4 text-sm text-muted-foreground">
+                  No departments loaded yet. Please refresh or wait for the list to appear.
+                </div>
+              ) : (
+                <Select value={forwardDept} onValueChange={setForwardDept}>
+                  <SelectTrigger className="w-full rounded-xl border-2 border-purple-200 bg-background h-12">
+                    <SelectValue placeholder="Choose a department..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl" portalled={false}>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id?.toString() || ""}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <div className="flex gap-3">
                 <Button 
                   onClick={handleForward} 
@@ -445,7 +458,7 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
           ) : (
             <div className="space-y-3">
               {isAdmin ? (
-                // Admin only - show FORWARD button
+                // Admin view - show FORWARD button
                 <Button 
                   onClick={() => setShowForward(true)} 
                   className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all bg-purple-500 hover:bg-purple-600 text-white uppercase italic"

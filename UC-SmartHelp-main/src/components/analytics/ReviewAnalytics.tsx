@@ -428,14 +428,21 @@ const ReviewAnalytics = ({ department, userDepartment, userRole }: ReviewAnalyti
           }
         </h3>
         <div className="rounded-xl border bg-card overflow-hidden">
-          <Table>
+          <Table className="table-fixed">
+            <colgroup>
+              {!department && userRole?.toLowerCase() !== "staff" && <col style={{ width: 120 }} />}
+              {!department && userRole?.toLowerCase() !== "staff" && <col style={{ width: 200 }} />}
+              <col style={{ width: 150 }} />
+              <col style={{ width: "minmax(220px, 1fr)" }} />
+              <col style={{ width: 180 }} />
+            </colgroup>
             <TableHead>
               <TableRow className="bg-muted/50">
-                {!department && userRole?.toLowerCase() !== "staff" && <TableHead className="font-bold">Type</TableHead>}
-                {!department && userRole?.toLowerCase() !== "staff" && <TableHead className="font-bold">Department</TableHead>}
-                <TableHead className="font-bold">Feedback</TableHead>
-                <TableHead className="font-bold">Comment</TableHead>
-                <TableHead className="font-bold">Date</TableHead>
+                {!department && userRole?.toLowerCase() !== "staff" && <TableHead className="font-bold min-w-[120px] w-[120px] px-3 whitespace-nowrap">Type</TableHead>}
+                {!department && userRole?.toLowerCase() !== "staff" && <TableHead className="font-bold min-w-[200px] w-[200px] px-3 whitespace-nowrap">Department</TableHead>}
+                <TableHead className="font-bold min-w-[150px] w-[150px] px-3 whitespace-nowrap">Feedback</TableHead>
+                <TableHead className="font-bold min-w-[220px] w-[40%] px-3 whitespace-nowrap">Comment</TableHead>
+                <TableHead className="font-bold min-w-[180px] w-[180px] px-3 whitespace-nowrap text-right">Date</TableHead>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -449,24 +456,24 @@ const ReviewAnalytics = ({ department, userDepartment, userRole }: ReviewAnalyti
                   return (
                     <TableRow key={`${f.type}-${f.id || idx}`}>
                       {!department && userRole?.toLowerCase() !== "staff" && (
-                        <TableCell>
+                        <TableCell className="w-[120px] align-top">
                           <Badge variant={f.type === "website" ? "secondary" : "default"}>
                             {f.type === "website" ? "Website" : "Department"}
                           </Badge>
                         </TableCell>
                       )}
                       {!department && userRole?.toLowerCase() !== "staff" && (
-                        <TableCell>
+                        <TableCell className="w-[200px] align-top">
                           {f.type === "website" ? "—" : f.department || "N/A"}
                         </TableCell>
                       )}
-                      <TableCell>
+                      <TableCell className="w-[150px] align-top">
                         <Badge className={helpful ? "bg-green-200 text-green-800" : "bg-orange-100 text-orange-700"}>
                           {helpful ? "Helpful" : "Not Helpful"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-md">{f.comment || "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="w-[40%] align-top max-w-[60ch] break-words">{f.comment || "—"}</TableCell>
+                      <TableCell className="w-[180px] text-sm text-muted-foreground align-top text-right">
                         {formatDateSafe(f.date_submitted, f.created_at)}
                       </TableCell>
                     </TableRow>

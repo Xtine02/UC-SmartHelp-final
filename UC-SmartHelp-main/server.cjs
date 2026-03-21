@@ -6,6 +6,14 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
+const VERBOSE_LOGS = process.env.VERBOSE_LOGS === "1";
+if (!VERBOSE_LOGS) {
+  console.log = () => {};
+  console.info = () => {};
+  console.debug = () => {};
+  console.warn = () => {};
+}
+
 const app = express();
 app.use(express.json());
 app.use(cors());
@@ -30,4 +38,4 @@ app.post('/api/tickets', async (req, res) => {
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`server is running in port 3000`));
+app.listen(PORT, () => process.stdout.write(`Server running on port ${PORT}\n`));

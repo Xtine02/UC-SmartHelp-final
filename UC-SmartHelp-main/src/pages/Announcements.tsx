@@ -22,14 +22,10 @@ interface User {
 }
 
 interface Announcement {
-  id: number;
-  user_id: number;
+  announcement_id: number;
   role: string;
-  department?: string;
   message: string;
   posted_at: string;
-  first_name?: string;
-  last_name?: string;
 }
 
 const Announcements = () => {
@@ -187,19 +183,13 @@ const Announcements = () => {
             </Card>
           ) : (
             announcements.map((announcement) => (
-              <Card key={announcement.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+              <Card key={announcement.announcement_id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant={announcement.role === "admin" ? "default" : "secondary"}>
-                          {announcement.role === "admin" ? "Admin" : "Staff"}
-                        </Badge>
-                        {announcement.role === "staff" && announcement.department && (
-                          <Badge variant="outline">{announcement.department}</Badge>
-                        )}
-                      </div>
-                      <CardTitle className="text-lg">{announcement.first_name} {announcement.last_name}</CardTitle>
+                      <Badge variant={announcement.role === "admin" ? "default" : "secondary"}>
+                        {announcement.role === "admin" ? "Admin" : "Staff"}
+                      </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground whitespace-nowrap">
                       {announcement.posted_at
