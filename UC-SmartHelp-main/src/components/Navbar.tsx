@@ -166,7 +166,7 @@ const Navbar = () => {
             onClick={() => handleTopNavClick("/help")}
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            Help
+            FAQ Section
           </button>
         </div>
 

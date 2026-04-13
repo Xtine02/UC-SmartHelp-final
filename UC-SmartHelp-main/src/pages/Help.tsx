@@ -6,65 +6,38 @@ import { X } from "lucide-react";
 
 const sections = [
   {
-    title: "General Information",
+    title: "Library",
     items: [
-      ["What is the University of Cebu?", "The University of Cebu (UC) is a private, non-profit university in Cebu offering undergraduate, graduate, and diploma programs across various fields."],
-      ["Where is UC located?", "The main campus is located at Sanciangko Street, Cebu City, with other campuses in Banilad, Mandaue, and Mambaling."],
-      ["What programs does UC offer?", "UC offers programs in IT, business, engineering, healthcare, hospitality, law, and more."],
+      ["What floor is the library?", "The entrance is on the 3rd floor, and the exit is on the 4th floor."],
+      ["What are the library hours?", "The UC Main Campus Library is open from Monday to Friday, 8:00 AM to 6:00 PM, and on Saturdays from 8:00 AM to 12:00 PM. Hours may vary during holidays or exam periods."],
     ],
   },
   {
-    title: "Admissions",
+    title: "Uniform and Dress Code",
     items: [
-      ["What are the requirements for new college students?", "High School Report Card (Form 138), Birth Certificate (PSA/NSO), Certificate of Good Moral Character, and ID photos."],
-      ["What are the requirements for transferees?", "Transcript of Records / Report Card, Transfer Credentials, Good Moral Certificate, Birth Certificate, and Entrance exam results."],
-      ["Do I need an entrance exam?", "Some programs may require entrance exams and evaluation depending on the course."],
+      ["What are the requirements for uniform exemptions?", "You need to submit a letter. If employed, you must provide a Certificate of Employment and fill out an exemption form. This does not apply to HM and Criminology students or working scholars."],
+      ["How do I process a uniform exemption?", "You need to go to the SAO, submit your letter, and fill out the required form."],
+      ["What are the qualifications for a uniform exemption?", "Pregnant students, LGBTQ students, and those employed outside the campus."],
+      ["Is there a dress code?", "Yes. Slippers and Crocs are not allowed; only shoes are permitted. Shorts are not allowed; students must wear pants. Skirts should not be more than 3 inches above the knee. Hair color and excessive earrings are prohibited."],
     ],
   },
   {
-    title: "Student Types",
+    title: "Enrollment and Payments",
     items: [
-      ["What documents do returning students need?", "Previous semester report card."],
-      ["What if I shift courses?", "Copy of grades, good moral certificate, and IQ test results."],
+      ["I paid the tuition/enrollment fee online. What should I do next?", "Take a screenshot of the receipt and upload it to the portal."],
+      ["How can I pay online?", "You can pay via bank. BDO: University of Cebu, Inc. - 001850000016 | MetroBank: University of Cebu - 094-3-01142638-7 | ASPAC: University of Cebu Main - 11-0101-00333-3 | UnionBank: University of Cebu Inc. - 001130008682 | PS Bank: University of Cebu - 109112000487"],
+      ["Where can I get my receipt if I paid online?", "You can claim your receipt at the cashier's office. Just present a screenshot or proof of payment."],
+      ["What documents do I need to enroll/register?", "You will need: high school diploma or college transcript of records, Certificate of Good Moral Character, birth certificate (original and photocopy), valid ID, and payment receipt for enrollment fees."],
     ],
   },
   {
-    title: "Enrollment",
+    title: "Campus Offices and Services",
     items: [
-      ["How do I enroll?", "Prepare required documents, submit application, complete enrollment form, and pay assessment fees. You can also enroll online via the UC portal."],
-      ["Is online enrollment available?", "Yes, UC provides an online enrollment system for all levels."],
-    ],
-  },
-  {
-    title: "Tuition and Fees",
-    items: [
-      ["How much is the tuition fee?", "Typically around PHP 20,000 to PHP 35,000 per semester depending on the course. Example: IT around PHP 22,000, Nursing around PHP 30,000."],
-      ["Does UC offer scholarships?", "Yes, including academic scholarships, athletic scholarships, and government scholarships (CHED, TES, DOST)."],
-    ],
-  },
-  {
-    title: "Scholarships",
-    items: [
-      ["What are the basic scholarship requirements?", "At least 85% GPA, birth certificate, application form, and ID photo."],
-    ],
-  },
-  {
-    title: "Campus and Facilities",
-    items: [
-      ["What facilities are available?", "Libraries, laboratories (e.g., wireless labs), sports facilities, student services, and admission/acceptance support."],
-      ["Is UC hard to get into?", "UC has a relatively high acceptance rate (around 80 to 89%), making it accessible to most applicants."],
-    ],
-  },
-  {
-    title: "Contact Information",
-    items: [
-      ["How can I contact UC?", "Phone: (032) 255-7777 | Email: main.collegeregistrar@uc.edu.ph"],
-    ],
-  },
-  {
-    title: "Academic Programs",
-    items: [
-      ["Program areas", "College of Information and Computer Studies, College of Engineering, College of Nursing, Maritime Education, Hospitality and Tourism, Business and Accountancy."],
+      ["Where is the Registrar's Office?", "The Registrar's Office is located on the ground floor of the Admin Building near the quadrangle. It is on the left side if you are facing the cashier/accounting office."],
+      ["What services are offered in the clinic?", "Medical and dental services (cleaning, filling, and tooth extraction)."],
+      ["Is dental service free?", "Yes, dental services are free as they are included in the miscellaneous fees."],
+      ["Is medical service free?", "Yes, medical services are also included in the miscellaneous fees."],
+      ["What is insurance and why do I need it?", "Insurance provides coverage in case of accidents inside the campus."],
     ],
   },
 ];
@@ -112,7 +85,7 @@ const Help = () => {
           >
             <X className="h-6 w-6" />
           </Button>
-          <h1 className="text-3xl font-extrabold tracking-tight">Help and FAQ</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight">FAQ Section</h1>
         </div>
 
         <div className="grid gap-4">
