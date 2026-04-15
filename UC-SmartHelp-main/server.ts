@@ -549,6 +549,7 @@ try {
 
   const [rows] = await db.query<RowDataPacket[]>('SELECT * FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1', [normalizedEmail]);
   const user = rows[0];
+  console.log('Login attempt for user:', user.email, 'password starts with:', user.password ? user.password.substring(0, 10) : 'no password');
   
   if (!user) {
     const nextFailed = Number(lockRow?.failed_count || 0) + 1;
@@ -568,6 +569,7 @@ try {
   }
 
   if (Number(user.is_disabled) === 1) {
+    console.log('Account disabled for user:', user.email);
     return res.status(403).json({ error: "Account disabled" });
   }
 
@@ -576,7 +578,9 @@ try {
   if (user.password && user.password.startsWith('$2')) {
     try {
       isMatch = await bcrypt.compare(password, user.password);
+      console.log('Bcrypt compare result for user', user.email, ':', isMatch);
     } catch (e: unknown) {
+      console.log('Bcrypt compare failed for user', user.email, ':', e);
       // Fallback to plain text comparison handled below
     }
   }
@@ -584,6 +588,7 @@ try {
   // Fallback to plain text comparison
   if (!isMatch) {
     isMatch = (password === user.password);
+    if (isMatch) console.log('Plain text match for user', user.email);
   }
 
   if (isMatch) {
@@ -1451,6 +1456,7 @@ app.post('/api/reset-password', async (req: Request, res: Response) => {
 
   try {
     const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+    console.log('Reset attempt with token hash:', tokenHash);
     const [rows] = await db.query<RowDataPacket[]>(
       `SELECT pass_reset_id AS id, user_id FROM password_reset_tokens
        WHERE token_hash = ? AND used_at IS NULL AND expires_at > NOW()
@@ -1459,14 +1465,18 @@ app.post('/api/reset-password', async (req: Request, res: Response) => {
     );
 
     if (rows.length === 0) {
+      console.log('No valid token found for hash:', tokenHash);
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
     const resetRow = rows[0];
+    console.log('Found reset token for user_id:', resetRow.user_id);
     const hashedPassword = await bcrypt.hash(String(password), 10);
+    console.log('Hashed password starts with:', hashedPassword.substring(0, 10));
 
+    const pkName = await getUserPkName();
     const [updateResult] = await db.query<ResultSetHeader>(
-      'UPDATE users SET password = ? WHERE user_id = ?',
+      `UPDATE users SET password = ? WHERE ${pkName} = ?`,
       [hashedPassword, resetRow.user_id]
     );
 
@@ -1475,6 +1485,7 @@ app.post('/api/reset-password', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Failed to update password for this account.' });
     }
 
+    console.log('Password updated successfully for user_id:', resetRow.user_id);
     await db.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE pass_reset_id = ?', [resetRow.id]);
 
     return res.status(200).json({ message: 'Password updated successfully' });
