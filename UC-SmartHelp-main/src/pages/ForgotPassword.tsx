@@ -126,6 +126,15 @@ const ForgotPassword = () => {
       return;
     }
 
+    if (linkedGmail && trimmedEmail.toLowerCase() !== linkedGmail.toLowerCase()) {
+      toast({
+        variant: "destructive",
+        title: "Email mismatch",
+        description: "The entered Gmail must match your linked Gmail address.",
+      });
+      return;
+    }
+
     console.log("🔐 Reset Password Process Started");
     console.log("📧 Email to reset:", trimmedEmail);
     console.log("👤 User ID:", userId);
@@ -135,10 +144,14 @@ const ForgotPassword = () => {
     setResetLoading(true);
     try {
       console.log("📤 Sending reset email via backend to:", trimmedEmail);
+      const payload: Record<string, any> = { email: trimmedEmail };
+      if (selectedMethod === "gmail" && userId != null) {
+        payload.user_id = userId;
+      }
       const response = await fetch(`${API_URL}/api/request-password-reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail }),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (!response.ok) {

@@ -1379,21 +1379,36 @@ app.post('/api/verify-gmail-owner', async (req: Request, res: Response) => {
 });
 
 app.post('/api/request-password-reset', async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const { email, user_id } = req.body;
   if (!email || typeof email !== 'string') {
     return res.status(400).json({ error: 'Email is required' });
   }
 
   const normalizedEmail = email.toLowerCase().trim();
+  if (!normalizedEmail.includes('@')) {
+    return res.status(400).json({ error: 'Please provide a valid email address.' });
+  }
+
   try {
     const pkName = await getUserPkName();
-    const [rows] = await db.query<RowDataPacket[]>(
-      `SELECT ${pkName} AS user_id, email, first_name
+    const queryWhere = `LOWER(TRIM(email)) = ? OR LOWER(TRIM(COALESCE(gmail_account, ''))) = ?`;
+    const params: any[] = [normalizedEmail, normalizedEmail];
+
+    let query = `SELECT ${pkName} AS user_id, email, first_name
        FROM users
-       WHERE LOWER(TRIM(email)) = ? OR LOWER(TRIM(COALESCE(gmail_account, ''))) = ?
-       LIMIT 1`,
-      [normalizedEmail, normalizedEmail]
-    );
+       WHERE (${queryWhere})`;
+
+    if (typeof user_id !== 'undefined' && user_id !== null) {
+      const parsedUserId = Number(user_id);
+      if (Number.isNaN(parsedUserId)) {
+        return res.status(400).json({ error: 'Invalid user_id provided.' });
+      }
+      query += ` AND ${pkName} = ?`;
+      params.push(parsedUserId);
+    }
+
+    query += ` LIMIT 1`;
+    const [rows] = await db.query<RowDataPacket[]>(query, params);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: 'email is not exists' });
