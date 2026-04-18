@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { normalizeDepartment } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Ticket, BarChart3 } from "lucide-react";
 import Navbar from "@/components/Navbar";
@@ -33,7 +34,8 @@ const Index = () => {
 
       if (role === "admin") return navigate("/AdminDashboard");
       if (role === "staff") {
-        if (department === "scholarship") return navigate("/ScholarshipDashboard");
+        const normalizedDept = normalizeDepartment(department);
+        if (normalizedDept === "scholarship") return navigate("/ScholarshipDashboard");
         return navigate("/AccountingDashboard");
       }
 

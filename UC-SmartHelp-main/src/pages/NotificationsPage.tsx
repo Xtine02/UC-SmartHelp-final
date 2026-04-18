@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { getDashboardPath } from '@/lib/utils';
 
 interface Notification {
   id?: number;
@@ -74,18 +75,6 @@ const NotificationsPage: React.FC = () => {
   };
 
   const getNotificationId = (notification: Notification) => notification.notification_id ?? notification.id ?? 0;
-
-  const getDashboardPath = () => {
-    const userJson = localStorage.getItem('user');
-    const user = userJson ? JSON.parse(userJson) : null;
-    const role = (user?.role || 'student').toString().toLowerCase();
-    const department = (user?.department || '').toString().toLowerCase();
-
-    if (role === 'admin') return '/AdminDashboard';
-    if (role === 'staff') return department === 'scholarship' ? '/ScholarshipDashboard' : '/AccountingDashboard';
-    if (localStorage.getItem('uc_guest') === '1') return '/GuestDashboard';
-    return '/StudentDashboard';
-  };
 
   const markAsRead = async (notificationId: number) => {
     const currentUser = getCurrentUser();
@@ -287,7 +276,10 @@ const NotificationsPage: React.FC = () => {
                           if (notification.is_read === 0 && notificationId) {
                             markAsRead(notificationId);
                           }
-                          if (['ticket_reply', 'student_ticket_reply', 'ticket_status_changed', 'ticket_overdue', 'ticket_overdue_staff', 'ticket_auto_closed', 'status_updated_by_you', 'department_feedback_submitted', 'new_ticket', 'overdue_tickets_detected', 'ticket_assigned'].includes(notification.type)) {
+                          if (notification.type === 'department_feedback_submitted') {
+                            // Redirect feedback notifications to departmental analytics
+                            navigate('/analytics');
+                          } else if (['ticket_reply', 'student_ticket_reply', 'ticket_status_changed', 'ticket_overdue', 'ticket_overdue_staff', 'ticket_auto_closed', 'status_updated_by_you', 'new_ticket', 'overdue_tickets_detected', 'ticket_assigned'].includes(notification.type)) {
                             // Check if user is staff/admin and redirect to their dashboard instead of tickets page
                             const userJson = localStorage.getItem("user");
                             const user = userJson ? JSON.parse(userJson) : null;

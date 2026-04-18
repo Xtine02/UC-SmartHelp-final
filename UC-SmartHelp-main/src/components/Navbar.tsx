@@ -375,7 +375,10 @@ const Navbar = () => {
                                   if (notification.is_read === 0 && notificationId) {
                                     markAsRead(notificationId);
                                   }
-                                  if (['ticket_reply', 'student_ticket_reply', 'ticket_status_changed', 'ticket_overdue', 'ticket_overdue_staff', 'ticket_auto_closed', 'department_feedback_submitted', 'new_ticket', 'overdue_tickets_detected'].includes(notification.type)) {
+                                  if (notification.type === 'department_feedback_submitted') {
+                                    // Feedback notifications should go straight to analytics
+                                    navigate('/analytics');
+                                  } else if (['ticket_reply', 'student_ticket_reply', 'ticket_status_changed', 'ticket_overdue', 'ticket_overdue_staff', 'ticket_auto_closed', 'new_ticket', 'overdue_tickets_detected'].includes(notification.type)) {
                                     const userRole = user?.role?.toLowerCase();
                                     if (userRole === 'admin' || userRole === 'staff') {
                                       navigate(getDashboardPath());

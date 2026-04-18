@@ -8,6 +8,7 @@ import { Eye, EyeOff, X, User } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { auth, googleProvider } from "@/lib/firebase"; 
 import { signInWithPopup } from "firebase/auth";
+import { normalizeDepartment } from "@/lib/utils";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -23,7 +24,7 @@ const Login = () => {
   // Helper function to get redirect path based on user role
   const getRedirectPath = (user: any) => {
     const role = (user?.role || "student").toLowerCase();
-    const department = (user?.department || "").toLowerCase();
+    const department = normalizeDepartment(user?.department || "");
 
     if (role === "admin") return "/AdminDashboard";
     if (role === "staff") {

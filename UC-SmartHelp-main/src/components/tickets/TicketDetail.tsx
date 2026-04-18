@@ -57,15 +57,50 @@ const TicketDetail = ({ ticket, onBack }: Props) => {
 
     // Automatically change status to in-progress if staff replies to pending ticket
     if (status === "pending" && isStaffOrAdmin) {
-      await supabase.from("tickets").update({ status: "in_progress" }).eq("id", ticket.id);
-      setStatus("in_progress");
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+      try {
+        await fetch(`${API_URL}/api/tickets/${ticket.id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: "in_progress",
+            user_id: user.userId || user.id,
+          }),
+        });
+        setStatus("in_progress");
+      } catch (error) {
+        console.error("Failed to auto-update status:", error);
+      }
     }
   };
 
   const handleStatusChange = async (newStatus: string) => {
     setStatus(newStatus);
-    await supabase.from("tickets").update({ status: newStatus as any }).eq("id", ticket.id);
-    toast({ title: "Status updated" });
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+    try {
+      const response = await fetch(`${API_URL}/api/tickets/${ticket.id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          user_id: user.userId || user.id,
+        }),
+      });
+      if (response.ok) {
+        toast({ title: "Status updated" });
+      } else {
+        const error = await response.json();
+        toast({ title: "Error", description: error.error || "Failed to update status", variant: "destructive" });
+        setStatus(ticket.status); // Revert on error
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
+      setStatus(ticket.status); // Revert on error
+    }
   };
 
   return (

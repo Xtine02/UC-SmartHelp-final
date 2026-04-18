@@ -5,12 +5,25 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export const normalizeDepartment = (department: string): string => {
+  const raw = (department || "").toString().trim().toLowerCase();
+  if (!raw) return "";
+
+  const scholarshipValues = ["scholarship", "scholarship office", "scholarship dept", "scholarship department"];
+  if (scholarshipValues.includes(raw)) return "scholarship";
+
+  const accountingValues = ["accounting", "accounting office", "accounting dept", "accounting department"];
+  if (accountingValues.includes(raw)) return "accounting";
+
+  return raw;
+};
+
 export const getLoggedInRedirectPath = (): string => {
   const isGuest = localStorage.getItem("uc_guest") === "1";
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
   const role = (user?.role || "").toString().toLowerCase();
-  const department = (user?.department || "").toString().toLowerCase();
+  const department = normalizeDepartment(user?.department || "");
 
   if (isGuest) return "/GuestDashboard";
   if (role === "admin") return "/AdminDashboard";
@@ -24,7 +37,7 @@ export const getDashboardPath = (): string => {
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
   const role = (user?.role || "student").toLowerCase();
-  const department = (user?.department || "").toLowerCase();
+  const department = normalizeDepartment(user?.department || "");
   
   if (role === "admin") return "/AdminDashboard";
   if (role === "staff") {

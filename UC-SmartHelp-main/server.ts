@@ -1741,14 +1741,34 @@ try {
   const params: unknown[] = [];
   let whereAdded = false;
 
+  let staffDepartment: string | null = null;
+  if (actualRole === 'staff' && user_id) {
+    const [staffRows] = await db.query<RowDataPacket[]>(
+      `SELECT department FROM users WHERE ${detectedUserPk} = ? LIMIT 1`,
+      [user_id]
+    );
+    if (staffRows.length > 0) {
+      staffDepartment = staffRows[0].department;
+    }
+  }
+
   if (actualRole === 'admin') {
     // Admin can see all tickets (no additional filtering)
     whereAdded = true;
-  } else if (actualRole === 'staff' && department && department.toString().trim().toLowerCase() !== 'all') {
-    // Staff requesting specific department tickets (Dashboard mode)
-    query += ` WHERE (t.department = ? OR t.department LIKE ?)`;
-    params.push(department, `%${department}%`);
-    whereAdded = true;
+  } else if (actualRole === 'staff') {
+    const requestedDept = department?.toString().trim().toLowerCase();
+    const effectiveDept = requestedDept && requestedDept !== 'all' ? requestedDept : staffDepartment?.toString().trim().toLowerCase();
+
+    if (effectiveDept) {
+      query += ` WHERE (LOWER(t.department) = ? OR LOWER(t.department) LIKE ?)`;
+      params.push(effectiveDept, `%${effectiveDept}%`);
+      whereAdded = true;
+    } else if (user_id) {
+      // Fallback: if staff has no department, show only their own tickets
+      query += ` WHERE t.user_id = ?`;
+      params.push(user_id);
+      whereAdded = true;
+    }
   } else if (user_id) {
     // Default mode: Everyone (including students) sees ONLY their own tickets
     query += ` WHERE t.user_id = ?`;
@@ -1943,14 +1963,24 @@ app.post('/api/tickets/:id/responses', async (req: Request, res: Response) => {
           );
         }
 
-        // If a student replied, notify all staff users (not admin) about the new reply
+        // If a student replied, notify only staff users in the ticket's department (not admin)
         if (role === 'student') {
-          const userPkName = await getUserPkName();
-          const [staffUsers] = await db.query<RowDataPacket[]>(
-            `SELECT ${userPkName} AS user_id FROM users WHERE role = 'staff'`
+          const [ticketDepartments] = await db.query<RowDataPacket[]>(
+            `SELECT department FROM tickets WHERE ${ticketPk} = ? LIMIT 1`,
+            [id]
           );
-          
-          console.log(`📢 Notifying ${staffUsers.length} staff members about student reply`);
+          const ticketDepartment = ticketDepartments.length > 0 ? ticketDepartments[0].department : null;
+          const userPkName = await getUserPkName();
+
+          let staffQuery = `SELECT ${userPkName} AS user_id FROM users WHERE role = 'staff'`;
+          const queryParams: any[] = [];
+          if (ticketDepartment) {
+            staffQuery += ` AND LOWER(department) = ?`;
+            queryParams.push(ticketDepartment.toString().toLowerCase());
+          }
+
+          const [staffUsers] = await db.query<RowDataPacket[]>(staffQuery, queryParams);
+          console.log(`📢 Notifying ${staffUsers.length} staff members in department "${ticketDepartment || 'unknown'}" about student reply`);
           for (const staff of staffUsers) {
             await createNotification(
               staff.user_id,
@@ -2419,7 +2449,7 @@ app.post('/api/check-overdue-tickets', async (req: Request, res: Response) => {
 
 // Department feedback endpoints
 app.post('/api/department-feedback', async (req: Request, res: Response) => {
-  const { user_id, ticket_id, department, rating, comment } = req.body;
+  const { user_id, department, rating, comment } = req.body;
 
   if (!department || typeof rating !== 'number') {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -2429,53 +2459,28 @@ app.post('/api/department-feedback', async (req: Request, res: Response) => {
     // Convert rating (5 = helpful pressed, 1 = poor pressed) to boolean is_helpful
     const isHelpful = rating === 5; // 5 = true (helpful), 1 = false (poor)
     
-    // Check if this ticket has an auto-closed feedback record
-    let finalComment = comment?.trim() || null;
-    if (ticket_id) {
-      const [existingFeedback] = await db.query<RowDataPacket[]>(
-        'SELECT auto_closed FROM department_feedback WHERE ticket_id = ? AND auto_closed = TRUE LIMIT 1',
-        [ticket_id]
-      );
-      
-      if (existingFeedback.length > 0) {
-        // This is feedback for an auto-closed ticket - append "- unattended"
-        if (finalComment) {
-          finalComment = `${finalComment} - unattended`;
-        } else {
-          finalComment = '- unattended';
-        }
-      }
-    }
-    
     await db.execute(
-      'INSERT INTO department_feedback (user_id, ticket_id, department, is_helpful, comment, feedback_completed, date_submitted) VALUES (?, ?, ?, ?, ?, TRUE, NOW())',
-      [user_id || null, ticket_id || null, department, isHelpful, finalComment]
+      'INSERT INTO department_feedback (user_id, department, is_helpful, comment, date_submitted) VALUES (?, ?, ?, ?, NOW())',
+      [user_id || null, department, isHelpful, comment?.trim() || null]
     );
 
-    // Notify staff only (not admin) that a student submitted department feedback
+    // Notify staff only (not admin) in the submitted department that a student submitted feedback
     try {
       const userPkName = await getUserPkName();
       const [staffUsers] = await db.query<RowDataPacket[]>(
-        `SELECT ${userPkName} AS user_id FROM users WHERE role = 'staff'`
+        `SELECT ${userPkName} AS user_id FROM users WHERE role = 'staff' AND LOWER(department) = ?`,
+        [department.toString().toLowerCase()]
       );
 
-      let feedbackMessage = `Student submitted feedback for the ${department} department.`;
-      if (ticket_id) {
-        const [ticketRows] = await db.query<RowDataPacket[]>(
-          'SELECT subject FROM tickets WHERE id = ? LIMIT 1',
-          [ticket_id]
-        );
-        const ticketSubject = ticketRows.length > 0 ? ticketRows[0].subject : 'ticket';
-        feedbackMessage = `Student submitted feedback for ticket "${ticketSubject}".`;
-      }
+      const feedbackMessage = `Student submitted feedback for the ${department} department.`;
 
+      console.log(`📢 Notifying ${staffUsers.length} staff members in department "${department}" about submitted feedback`);
       for (const staff of staffUsers) {
         await createNotification(
           staff.user_id,
           'department_feedback_submitted',
           'Student feedback submitted',
-          feedbackMessage,
-          ticket_id || undefined
+          feedbackMessage
         );
       }
     } catch (notifError) {
@@ -2483,7 +2488,7 @@ app.post('/api/department-feedback', async (req: Request, res: Response) => {
     }
 
     if (user_id) {
-      await logAudit(req, user_id, 'Submitted department feedback', 'department_feedback', ticket_id ? ticket_id.toString() : undefined);
+      await logAudit(req, user_id, 'Submitted department feedback', 'department_feedback');
     }
 
     res.status(201).json({ message: 'Department feedback saved' });
@@ -2495,7 +2500,18 @@ app.post('/api/department-feedback', async (req: Request, res: Response) => {
 
 app.get('/api/department-feedback', async (req: Request, res: Response) => {
   try {
-    const [rows] = await db.query<RowDataPacket[]>('SELECT dept_feedback_id as id, user_id, ticket_id, department, is_helpful, comment, feedback_requested, feedback_completed, auto_closed, date_submitted, date_requested FROM department_feedback ORDER BY date_submitted DESC');
+    const { department } = req.query;
+    let query = 'SELECT dept_feedback_id as id, user_id, department, is_helpful, comment, date_submitted FROM department_feedback';
+    const params: any[] = [];
+
+    if (department && department !== 'all') {
+      query += ' WHERE department = ?';
+      params.push(department);
+    }
+
+    query += ' ORDER BY date_submitted DESC';
+
+    const [rows] = await db.query<RowDataPacket[]>(query, params);
     res.json(rows);
   } catch (error: unknown) {
     console.error('Error fetching department feedback:', error);
@@ -2503,7 +2519,8 @@ app.get('/api/department-feedback', async (req: Request, res: Response) => {
   }
 });
 
-// Get pending feedback requests for a user
+// Get pending feedback requests for a user - REMOVED: requires additional schema columns
+/*
 app.get('/api/department-feedback/pending', async (req: Request, res: Response) => {
   const { user_id } = req.query;
   
@@ -2522,6 +2539,7 @@ app.get('/api/department-feedback/pending', async (req: Request, res: Response) 
     res.status(500).json({ error: 'Error fetching pending feedback' });
   }
 });
+*/
 
 
 

@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS department_feedback (
     department VARCHAR(100) NOT NULL,
     is_helpful BOOLEAN NOT NULL,
     comment TEXT,
-    date_submitted TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    date_submitted TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 -- Create website_feedback table
@@ -105,6 +106,23 @@ CREATE TABLE IF NOT EXISTS website_feedback (
     comment TEXT,
     date_submitted TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Create notifications table
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT,
+    ticket_id INT,
+    announcement_id INT,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (ticket_id) REFERENCES tickets(id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_created_at (created_at)
 );
 
 -- Create announcement table

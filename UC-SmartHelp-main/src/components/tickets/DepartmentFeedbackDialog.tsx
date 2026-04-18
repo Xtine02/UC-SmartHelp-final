@@ -54,7 +54,6 @@ const DepartmentFeedbackDialog = ({ open, onClose, departmentName, departmentId,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: userId,
-          ticket_id: ticketId || null,
           department: departmentName || departmentId || "",
           rating,
           comment: comment.trim() || null,
