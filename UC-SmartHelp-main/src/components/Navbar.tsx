@@ -290,9 +290,9 @@ const Navbar = () => {
     <nav className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-sm">
       <div className="container flex h-16 items-center justify-between px-4 sm:px-8">
         <div className="flex items-center gap-4 hidden md:flex">
-          <Link to="/?noRedirect=1" className="flex items-center gap-2 animate-in fade-in duration-300">
+          <div className="flex items-center gap-2">
             <img src={logo} alt="UC SmartHelp" className="h-16 w-auto opacity-90" />
-          </Link>
+          </div>
         </div>
         {/* Navigation Links */}
         <div className="hidden items-center gap-6 md:flex">
