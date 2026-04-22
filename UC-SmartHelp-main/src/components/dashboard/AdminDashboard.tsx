@@ -8,6 +8,7 @@ import ReviewAnalytics from "@/components/analytics/ReviewAnalytics";
 import AccountManagement from "@/components/admin/AccountManagement";
 import AuditTrail from "@/components/admin/AuditTrail";
 import ChatHistoryPage from "@/pages/ChatHistoryPage";
+import ChatIsolationTest from "@/components/ChatIsolationTest";
 import Navbar from "@/components/Navbar";
 import { useBackConfirm } from "@/hooks/use-back-confirm";
 import { format } from "date-fns";
@@ -62,6 +63,10 @@ interface User {
   first_name?: string;
   last_name?: string;
   username?: string;
+  email?: string;
+  role?: string;
+  department?: string;
+  is_disabled?: number;
 }
 
 const DEPT_NAME_MAP: Record<string, string> = {
@@ -288,7 +293,7 @@ const AdminDashboard = () => {
       return {
         title: "User Management",
         headers: ["ID", "First Name", "Last Name", "Email", "Role", "Department", "Status"],
-        rows: users.map((u: any) => [
+        rows: users.map((u: User) => [
           String(u.id),
           u.first_name || "",
           u.last_name || "",
@@ -306,7 +311,7 @@ const AdminDashboard = () => {
       return {
         title: "Feedback Analytics",
         headers: ["Type", "Department", "Helpful", "Comment", "Date"],
-        rows: deptData.map((f: any) => [
+        rows: deptData.map((f: { department?: string; is_helpful?: boolean; comment?: string; date_submitted?: string; created_at?: string }) => [
           "Department",
           f.department || "",
           f.is_helpful ? "Helpful" : "Not Helpful",
