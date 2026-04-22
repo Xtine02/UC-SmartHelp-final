@@ -590,7 +590,8 @@ const TicketDetailModal = ({ ticket, onClose, isStaff = false, onFeedbackSuccess
                     <Button onClick={() => setShowReplyBox(true)} className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all uc-gradient-btn text-white">
                       REPLY TO TICKET
                     </Button>
-                  ) : (                    <Button onClick={() => setShowReplyBox(true)} className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all uc-gradient-btn text-white">
+                  ) : (
+                    <Button onClick={() => setShowReplyBox(true)} className="w-full py-8 text-xl font-black rounded-2xl shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all uc-gradient-btn text-white">
                       REPLY TO TICKET
                     </Button>
                   )}

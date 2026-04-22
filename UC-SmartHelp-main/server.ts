@@ -27,10 +27,11 @@ const db = mysql.createPool({
   database: process.env.DB_NAME || 'uc_smarthelp',
 });
 
-const OVERDUE_TICKET_DEMO_MINUTES = 5; // demo threshold only
+const OVERDUE_TICKET_DEMO_MINUTES = 1; // demo threshold only
 const OVERDUE_WARNING_MINUTES = 40; // warn staff after 40 minutes unattended
+const STAFF_INACTIVITY_MINUTES = 1; // staff must reply within 1 minute of marking in_progress
 const OVERDUE_TICKET_TEXT = '5 days'; // preserve user-facing wording
-const OVERDUE_CHECK_INTERVAL_MS = 10000; // every 10 seconds for testing
+const OVERDUE_CHECK_INTERVAL_MS = 60000; // every 1 minute for testing
 
 // This is used for ticket responses tables, which may be named either `ticket_response` or `ticket_responses`.
 // It's initialized during database migration in `initializeDatabase`.
@@ -144,6 +145,13 @@ const initializeDatabase = async () => {
     }
     if (!columnNames.includes('reopen_at')) {
       await connection.query("ALTER TABLE tickets ADD COLUMN reopen_at TIMESTAMP NULL");
+    }
+
+    // Ensure status column can accommodate longer status values
+    if (columnNames.includes('status')) {
+      await connection.query("ALTER TABLE tickets MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'pending'");
+    } else {
+      await connection.query("ALTER TABLE tickets ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'pending'");
     }
 
     const ticketRefColumn = columnNames.includes('id') ? 'id' : (columnNames.includes('ticket_id') ? 'ticket_id' : 'id');
@@ -1803,8 +1811,6 @@ try {
   
   const [rows] = await db.query<RowDataPacket[]>(query, params);
   
-  console.log("DEBUG: Raw tickets fetched from DB:", rows.map(r => ({ id: r.ticket_id || r.id, status: r.status })));
-  
   const normalizedRows = rows.map((r) => {
     const normalizedStatus = r.status
       ?.toString()
@@ -2203,7 +2209,7 @@ app.patch('/api/tickets/:id/open', async (req: Request, res: Response) => {
     const pkName = ticketCols.find((c) => c.Field.toLowerCase() === 'id' || c.Field.toLowerCase() === 'ticket_id')?.Field || 'id';
 
     // SQL Query: Update if current status is 'pending' or 'reopened' (case-insensitive)
-    const query = `UPDATE tickets SET status = 'In-Progress', acknowledge_at = CURRENT_TIMESTAMP WHERE ${pkName} = ? AND (LOWER(status) = 'pending' OR LOWER(status) = 'reopened')`;
+    const query = `UPDATE tickets SET status = 'In-Progress', staff_acknowledge_at = CURRENT_TIMESTAMP WHERE ${pkName} = ? AND (LOWER(status) = 'pending' OR LOWER(status) = 'reopened')`;
     const [result] = await db.execute<ResultSetHeader>(query, [id]);
 
     // Fetch the latest state
@@ -3270,17 +3276,18 @@ const checkOverdueTickets = async () => {
     console.log(`Detected user PK: ${userPkName}`);
 
     // Find tickets that haven't had staff replies for the demo threshold (1 minute), but keep labels at 5 days
-    const [overdueTickets] = await db.query<RowDataPacket[]>(`
+    // Also find tickets where staff marked as in_progress but didn't reply within staff inactivity threshold
+    const sqlQuery = `
       SELECT t.${ticketPkName} as id, t.user_id, t.subject, t.status, t.created_at, t.department,
              MAX(tr.created_at) as last_response_date,
              MAX(CASE WHEN LOWER(tr.role) IN ('staff', 'admin') THEN tr.created_at ELSE NULL END) as last_staff_response_date,
              MAX(CASE WHEN LOWER(tr.role) = 'student' THEN tr.created_at ELSE NULL END) as last_student_response_date,
-             u.role
+             u.role, t.staff_acknowledge_at
       FROM tickets t
       LEFT JOIN ${RESPONSE_TABLE} tr ON t.${ticketPkName} = tr.ticket_id
       LEFT JOIN users u ON t.user_id = u.${userPkName}
       WHERE LOWER(t.status) NOT IN ('resolved', 'closed', 'unattended')
-      GROUP BY t.${ticketPkName}, t.user_id, t.subject, t.status, t.created_at, t.department, u.role
+      GROUP BY t.${ticketPkName}, t.user_id, t.subject, t.status, t.created_at, t.department, u.role, t.staff_acknowledge_at
       HAVING (
         last_staff_response_date IS NULL
         AND TIMESTAMPDIFF(MINUTE, t.created_at, NOW()) >= ${OVERDUE_TICKET_DEMO_MINUTES}
@@ -3293,8 +3300,82 @@ const checkOverdueTickets = async () => {
         AND last_student_response_date IS NOT NULL
         AND last_student_response_date > last_staff_response_date
         AND TIMESTAMPDIFF(MINUTE, last_student_response_date, NOW()) >= ${OVERDUE_TICKET_DEMO_MINUTES}
+      ) OR (
+        -- Staff inactivity: marked in_progress but no staff reply for STAFF_INACTIVITY_MINUTES
+        (LOWER(t.status) = 'in_progress' OR t.status = 'In-Progress')
+        AND t.staff_acknowledge_at IS NOT NULL
+        AND (
+          last_staff_response_date IS NULL 
+          OR last_staff_response_date <= t.staff_acknowledge_at
+        )
+        AND TIMESTAMPDIFF(MINUTE, t.staff_acknowledge_at, NOW()) >= ${STAFF_INACTIVITY_MINUTES}
       )
+    `;
+    
+    console.log('DEBUG: Executing overdue tickets query...');
+    console.log('DEBUG: OVERDUE_TICKET_DEMO_MINUTES:', OVERDUE_TICKET_DEMO_MINUTES);
+    console.log('DEBUG: STAFF_INACTIVITY_MINUTES:', STAFF_INACTIVITY_MINUTES);
+    
+    const [overdueTickets] = await db.query<RowDataPacket[]>(sqlQuery);
+    
+    // Also run debug queries to see all tickets and their status
+    const [allTickets] = await db.query<RowDataPacket[]>(`
+      SELECT t.${ticketPkName} as id, t.subject, t.status, t.staff_acknowledge_at, t.acknowledge_at,
+             TIMESTAMPDIFF(MINUTE, COALESCE(t.staff_acknowledge_at, t.acknowledge_at, t.created_at), NOW()) as minutes_since
+      FROM tickets t
+      ORDER BY t.created_at DESC
+      LIMIT 10
     `);
+    
+    console.log('DEBUG: All recent tickets:', allTickets.length);
+    allTickets.forEach(ticket => {
+      console.log('DEBUG: Ticket:', {
+        id: ticket.id,
+        subject: ticket.subject,
+        status: ticket.status,
+        staff_acknowledge_at: ticket.staff_acknowledge_at,
+        acknowledge_at: ticket.acknowledge_at,
+        minutes_since: ticket.minutes_since
+      });
+    });
+
+    // Also run a debug query to see all in_progress tickets
+    const [debugInProgress] = await db.query<RowDataPacket[]>(`
+      SELECT t.${ticketPkName} as id, t.subject, t.status, t.staff_acknowledge_at, 
+             TIMESTAMPDIFF(MINUTE, t.staff_acknowledge_at, NOW()) as minutes_since_ack,
+             (SELECT MAX(tr.created_at) FROM ${RESPONSE_TABLE} tr WHERE tr.ticket_id = t.${ticketPkName} AND LOWER(tr.role) IN ('staff', 'admin')) as last_staff_response_date
+      FROM tickets t
+      WHERE LOWER(t.status) = 'in_progress' OR t.status = 'In-Progress'
+    `);
+    
+    console.log('DEBUG: Found in_progress tickets:', debugInProgress.length);
+    debugInProgress.forEach(ticket => {
+      console.log('DEBUG: In-progress ticket:', {
+        id: ticket.id,
+        subject: ticket.subject,
+        status: ticket.status,
+        staff_acknowledge_at: ticket.staff_acknowledge_at,
+        minutes_since_ack: ticket.minutes_since_ack,
+        last_staff_response_date: ticket.last_staff_response_date
+      });
+      
+      // Debug the specific conditions for staff inactivity
+      const hasStaffAck = ticket.staff_acknowledge_at !== null;
+      const hasNoStaffReply = ticket.last_staff_response_date === null;
+      const staffReplyBeforeAck = ticket.last_staff_response_date && ticket.staff_acknowledge_at && 
+        new Date(ticket.last_staff_response_date) <= new Date(ticket.staff_acknowledge_at);
+      const minutesSinceAck = ticket.minutes_since_ack;
+      const meetsTimeThreshold = minutesSinceAck >= STAFF_INACTIVITY_MINUTES;
+      
+      console.log('DEBUG: Staff inactivity conditions for ticket', ticket.id, ':', {
+        hasStaffAck,
+        hasNoStaffReply, 
+        staffReplyBeforeAck,
+        minutesSinceAck,
+        meetsTimeThreshold,
+        shouldTrigger: hasStaffAck && (hasNoStaffReply || staffReplyBeforeAck) && meetsTimeThreshold
+      });
+    });
 
     console.log(`Found ${overdueTickets.length} overdue tickets`);
     if (overdueTickets.length > 0) {
@@ -3326,10 +3407,22 @@ const checkOverdueTickets = async () => {
         continue;
       }
 
-      const overdueReference = lastStudentResponseDate && lastStudentResponseDate > createdAt
-        ? lastStudentResponseDate
-        : createdAt;
-      const staffRepliedAfterReference = lastStaffResponseDate && lastStaffResponseDate > overdueReference;
+      let overdueReference;
+      let staffRepliedAfterReference;
+      
+      // For staff inactivity cases (In-Progress with staff_acknowledge_at), use staff_acknowledge_at as reference
+      if ((ticket.status === 'In-Progress' || ticket.status.toLowerCase() === 'in_progress') && ticket.staff_acknowledge_at) {
+        overdueReference = new Date(ticket.staff_acknowledge_at);
+        staffRepliedAfterReference = lastStaffResponseDate && lastStaffResponseDate > overdueReference;
+        console.log(`Ticket ${ticketId}: Staff inactivity case - using staff_acknowledge_at as reference`);
+      } else {
+        // Original logic for student waiting cases
+        overdueReference = lastStudentResponseDate && lastStudentResponseDate > createdAt
+          ? lastStudentResponseDate
+          : createdAt;
+        staffRepliedAfterReference = lastStaffResponseDate && lastStaffResponseDate > overdueReference;
+        console.log(`Ticket ${ticketId}: Student waiting case - using original reference logic`);
+      }
 
       console.log(`Ticket ${ticketId}: staffRepliedAfterReference=${staffRepliedAfterReference}`);
 
@@ -3441,7 +3534,24 @@ const checkOverdueTickets = async () => {
         }
 
         // Auto-resolve ticket after overdue threshold (only once per ticket)
-        if (minutesSinceReference >= OVERDUE_TICKET_DEMO_MINUTES) {
+        const shouldAutoResolve = minutesSinceReference >= OVERDUE_TICKET_DEMO_MINUTES;
+        console.log(`Ticket ${ticketId}: Auto-resolve check - minutesSinceReference=${minutesSinceReference}, threshold=${OVERDUE_TICKET_DEMO_MINUTES}, shouldAutoResolve=${shouldAutoResolve}`);
+        
+        // Additional check for staff inactivity: if ticket is in_progress and staff_acknowledge_at is set
+        let minutesSinceStaffAck = 0;
+        let shouldAutoResolveStaffInactivity = false;
+        
+        if ((ticket.status === 'In-Progress' || ticket.status.toLowerCase() === 'in_progress') && ticket.staff_acknowledge_at) {
+          minutesSinceStaffAck = Math.floor((Date.now() - new Date(ticket.staff_acknowledge_at).getTime()) / (1000 * 60));
+          shouldAutoResolveStaffInactivity = minutesSinceStaffAck >= STAFF_INACTIVITY_MINUTES;
+          console.log(`Ticket ${ticketId}: Staff inactivity check - minutesSinceStaffAck=${minutesSinceStaffAck}, threshold=${STAFF_INACTIVITY_MINUTES}, shouldAutoResolveStaffInactivity=${shouldAutoResolveStaffInactivity}`);
+        } else {
+          console.log(`Ticket ${ticketId}: Not checking staff inactivity - status=${ticket.status}, staff_acknowledge_at=${ticket.staff_acknowledge_at}`);
+        }
+        
+        console.log(`Ticket ${ticketId}: Final auto-resolve decision - shouldAutoResolve=${shouldAutoResolve}, shouldAutoResolveStaffInactivity=${shouldAutoResolveStaffInactivity}, willAutoResolve=${shouldAutoResolve || shouldAutoResolveStaffInactivity}`);
+        
+        if (shouldAutoResolve || shouldAutoResolveStaffInactivity) {
           // Check if already resolved or unattended - if already unattended, skip everything
           if (ticket.status && ticket.status.toLowerCase() === 'unattended') {
             console.log(`Ticket ${ticketId} is already unattended, skipping status update and notifications`);
@@ -3456,7 +3566,12 @@ const checkOverdueTickets = async () => {
                 [ticketId]
               );
               ticketsAutoResolved++;
-              console.log(`Auto-marked ticket ${ticketId} as Unattended due to inactivity`);
+              
+              if (shouldAutoResolveStaffInactivity) {
+                console.log(`Auto-marked ticket ${ticketId} as Unattended due to staff inactivity (${minutesSinceStaffAck} minutes since acknowledgment)`);
+              } else {
+                console.log(`Auto-marked ticket ${ticketId} as Unattended due to inactivity (${minutesSinceReference} minutes since reference)`);
+              }
               
               // Update ticket status in memory to prevent further notifications
               ticket.status = 'unattended';
