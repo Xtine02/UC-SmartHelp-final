@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Edit2, X } from "lucide-react";
+import { UserPlus, Edit2, X, Eye, EyeOff } from "lucide-react";
 
 interface User {
   id: number;
@@ -40,12 +40,14 @@ const AccountManagement = () => {
   const [newUser, setNewUser] = useState({
     first_name: "",
     last_name: "",
+    username: "",
     email: "",
     password: "",
     role: "staff",
     department: "",
   });
   const [createLoading, setCreateLoading] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
   const departments = [
@@ -220,7 +222,7 @@ const AccountManagement = () => {
 
   const handleCreateUser = async (e: FormEvent) => {
     e.preventDefault();
-    if (!newUser.first_name || !newUser.last_name || !newUser.email || !newUser.password) {
+    if (!newUser.first_name || !newUser.last_name || !newUser.username || !newUser.email || !newUser.password) {
       toast({ variant: "destructive", title: "Error", description: "Please fill in all required fields" });
       return;
     }
@@ -233,6 +235,7 @@ const AccountManagement = () => {
         body: JSON.stringify({
           first_name: newUser.first_name,
           last_name: newUser.last_name,
+          username: newUser.username,
           email: newUser.email,
           password: newUser.password,
           role: newUser.role,
@@ -257,7 +260,7 @@ const AccountManagement = () => {
       // Optimistically add new user to list
       setUsers((prev) => [...prev, newUserData]);
       toast({ title: "Success", description: "User created successfully" });
-      setNewUser({ first_name: "", last_name: "", email: "", password: "", role: "staff", department: "" });
+      setNewUser({ first_name: "", last_name: "", username: "", email: "", password: "", role: "staff", department: "" });
       setCreateDialogOpen(false);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
@@ -308,6 +311,16 @@ const AccountManagement = () => {
                 </div>
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Username *</label>
+                <Input
+                  type="text"
+                  value={newUser.username}
+                  onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                  placeholder="username"
+                  className="rounded-lg"
+                />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground">Email *</label>
                 <Input
                   type="email"
@@ -319,13 +332,22 @@ const AccountManagement = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground">Password *</label>
-                <Input
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  placeholder="Enter password"
-                  className="rounded-lg"
-                />
+                <div className="relative">
+                  <Input
+                    type={showCreatePassword ? "text" : "password"}
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    placeholder="Enter password"
+                    className="rounded-lg pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatePassword(!showCreatePassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showCreatePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground">Role *</label>
