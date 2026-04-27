@@ -13,7 +13,6 @@ const ForgotPassword = () => {
   const [identifier, setIdentifier] = useState("");
   const [userId, setUserId] = useState<string | number | null>(null);
   const [email, setEmail] = useState("");
-  const [confirmGmail, setConfirmGmail] = useState("");
   const [linkedGmail, setLinkedGmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<{
     username?: string | null;
@@ -25,11 +24,11 @@ const ForgotPassword = () => {
   } | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
-  const [showManualEmail, setShowManualEmail] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedMethod, setSelectedMethod] = useState<"gmail" | "manual" | "password">("gmail");
+  const [selectedMethod, setSelectedMethod] = useState<"gmail" | "password">("gmail");
   const [profileLabel, setProfileLabel] = useState("");
-  const [manualEmail, setManualEmail] = useState("");
+  const [confirmGmail, setConfirmGmail] = useState("");
+
   const { toast } = useToast();
 
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -80,10 +79,8 @@ const ForgotPassword = () => {
       if (!response.ok || matchedAccounts.length === 0) {
         setLinkedGmail(null);
         setEmail(trimmedIdentifier);
-        setConfirmGmail("");
         setProfile(null);
         setUserId(null);
-        setShowManualEmail(true);
         toast({ variant: "destructive", title: "Account not found", description: "Username does not exists" });
       } else {
         hasMatchedAccounts = true;
@@ -92,15 +89,11 @@ const ForgotPassword = () => {
         setProfile(first.profile || null);
         setLinkedGmail(first.gmail_account || null);
         setEmail(trimmedIdentifier);
-        setConfirmGmail("");
-        setShowManualEmail(!(first.gmail_account || "").trim());
       }
     } catch (error: unknown) {
       console.error("Lookup error", error);
       setLinkedGmail(null);
       setEmail("");
-      setConfirmGmail("");
-      setShowManualEmail(true);
       toast({ variant: "destructive", title: "Lookup error", description: "Unable to find the linked Gmail right now." });
     } finally {
       setLookupLoading(false);
@@ -139,13 +132,13 @@ const ForgotPassword = () => {
       }
 
       console.log("🔐 Reset Password Process Started - Gmail Method");
-      console.log("📧 Email to reset:", trimmedEmail);
+      console.log("📧 Email to reset:", linkedGmail);
       console.log("👤 User ID:", userId);
 
       setResetLoading(true);
       try {
-        console.log("📤 Sending reset email via backend to:", trimmedEmail);
-        const payload: { username: string; user_id?: string | number | null } = { username: trimmedEmail };
+        console.log("📤 Sending reset email via backend to:", linkedGmail);
+        const payload: { username: string; user_id?: string | number | null } = { username: identifier };
         if (userId != null) {
           payload.user_id = userId;
         }
@@ -169,50 +162,6 @@ const ForgotPassword = () => {
       return;
     }
 
-    // Handle Manual Email Recovery
-    if (selectedMethod === "manual") {
-      const trimmedManualEmail = manualEmail.trim();
-      if (!trimmedManualEmail) {
-        toast({ variant: "destructive", title: "Error", description: "Please enter an email address." });
-        return;
-      }
-
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmedManualEmail)) {
-        toast({ variant: "destructive", title: "Invalid Email", description: "Please enter a valid email address." });
-        return;
-      }
-
-      console.log("🔐 Reset Password Process Started - Manual Email Method");
-      console.log("📧 Email to reset:", trimmedManualEmail);
-      console.log("👤 User ID:", userId);
-
-      setResetLoading(true);
-      try {
-        console.log("📤 Sending reset email via backend to:", trimmedManualEmail);
-        const payload: { username: string; user_id?: string | number | null } = { username: trimmedManualEmail };
-        if (userId != null) {
-          payload.user_id = userId;
-        }
-        const response = await fetch(`${API_URL}/api/request-password-reset`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || "Unable to send reset link right now.");
-        }
-        toast({ title: "Check your email", description: "We have sent a password reset link to your email address." });
-      } catch (error: unknown) {
-        console.error("❌ Reset error:", error);
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        toast({ variant: "destructive", title: "Reset failed", description: errorMsg || "Unable to send reset link right now." });
-      } finally {
-        setResetLoading(false);
-      }
-    }
   };
 
   const getProfileInitials = () => {
@@ -281,22 +230,13 @@ const ForgotPassword = () => {
 
               <div className="space-y-4">
                 <Label className="text-primary-foreground">Choose recovery method</Label>
-                <RadioGroup value={selectedMethod} onValueChange={(value) => setSelectedMethod(value as "gmail" | "manual" | "password")} className="space-y-3">
+                <RadioGroup value={selectedMethod} onValueChange={(value) => setSelectedMethod(value as "gmail" | "password")} className="space-y-3">
                   {linkedGmail && (
                     <label className="flex items-start gap-3 rounded-xl border border-border bg-background p-4">
                       <RadioGroupItem value="gmail" />
                       <div>
                         <p className="font-medium text-foreground">Reset via linked Gmail</p>
                         <p className="text-sm text-muted-foreground">Send a reset link to {maskEmail(linkedGmail)}</p>
-                      </div>
-                    </label>
-                  )}
-                  {showManualEmail && (
-                    <label className="flex items-start gap-3 rounded-xl border border-border bg-background p-4">
-                      <RadioGroupItem value="manual" />
-                      <div>
-                        <p className="font-medium text-foreground">Reset via manual email entry</p>
-                        <p className="text-sm text-muted-foreground">Enter your email address to receive a reset link.</p>
                       </div>
                     </label>
                   )}
@@ -325,20 +265,7 @@ const ForgotPassword = () => {
                     />
                   </div>
                 )}
-                {selectedMethod === "manual" && (
-                  <div className="space-y-2">
-                    <Label className="text-primary-foreground">Enter Your Email Address</Label>
-                    <Input
-                      type="email"
-                      placeholder="your.email@example.com"
-                      value={manualEmail}
-                      onChange={(e) => setManualEmail(e.target.value)}
-                      required
-                      className="bg-card/90 border-0"
-                    />
-                  </div>
-                )}
-                {(selectedMethod === "gmail" || selectedMethod === "manual") && (
+                {selectedMethod === "gmail" && (
                   <Button
                     type="submit"
                     disabled={resetLoading}

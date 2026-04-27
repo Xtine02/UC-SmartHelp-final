@@ -27,9 +27,9 @@ const db = mysql.createPool({
   database: process.env.DB_NAME || 'uc_smarthelp',
 });
 
-const OVERDUE_TICKET_DEMO_MINUTES = 1; // demo threshold only
+const OVERDUE_TICKET_DEMO_MINUTES = 5; // demo threshold only
 const OVERDUE_WARNING_MINUTES = 40; // warn staff after 40 minutes unattended
-const STAFF_INACTIVITY_MINUTES = 1; // staff must reply within 1 minute of marking in_progress
+const STAFF_INACTIVITY_MINUTES = 5; // staff must reply within 5 minutes of marking in_progress
 const OVERDUE_TICKET_TEXT = '5 days'; // preserve user-facing wording
 const OVERDUE_CHECK_INTERVAL_MS = 60000; // every 1 minute for testing
 
@@ -1515,12 +1515,12 @@ app.post('/api/verify-gmail-owner', async (req: Request, res: Response) => {
 });
 
 app.post('/api/request-password-reset', async (req: Request, res: Response) => {
-  const { username: email, user_id } = req.body;
-  if (!email || typeof email !== 'string') {
+  const { username, user_id } = req.body;
+  if (!username || typeof username !== 'string') {
     return res.status(400).json({ error: 'Username is required' });
   }
 
-  const normalizedUsername = email.toLowerCase().trim();
+  const normalizedUsername = username.toLowerCase().trim();
   if (!normalizedUsername) {
     return res.status(400).json({ error: 'Please provide a valid username.' });
   }
