@@ -231,7 +231,7 @@ const FlowiseChatbot = () => {
     window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       try {
         const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-        const isPredictionCall = url.includes("/api/v1/prediction/879b246d-a9f5-44e6-9d5f-07b4a38bf65b");
+        const isPredictionCall = url.includes("/api/v1/prediction/805427d8-dcaf-4f8f-886a-2a360343d942");
         const method = (init?.method || "GET").toUpperCase();
 
         if (isPredictionCall && method === "POST") {
@@ -293,8 +293,8 @@ const FlowiseChatbot = () => {
     script.textContent = `
       import Chatbot from "https://cdn.jsdelivr.net/npm/flowise-embed/dist/web.js";
       Chatbot.init({
-        chatflowid: "879b246d-a9f5-44e6-9d5f-07b4a38bf65b",
-        apiHost: "http://localhost:3001",
+        chatflowid: "805427d8-dcaf-4f8f-886a-2a360343d942",
+        apiHost: "https://flowise-production-52e2.up.railway.app",
         sessionId: "${accountScope}",
         chatflowConfig: {
           sessionId: "${accountScope}",
